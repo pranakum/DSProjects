@@ -1,0 +1,6 @@
+
+AttributeName
+Rowid-------row identifier(numerical)
+Itemname----FoodItemName(character)
+Rating-------Rating of the FoodItem(numerical)
+attr3,attr5....attr680---Ingredients(numerical)
