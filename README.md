@@ -1,4 +1,5 @@
 # Projects:
+PGP Program INSOFE
 Cute2
 •	To Predict the Rating of a Food Item based on the ingredients present in it. 
 	StepAIC , VIF, and Regularization and used for feature selection.
