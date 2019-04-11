@@ -1,2 +1,0 @@
-Predict the ratings of the food item based  on the attributes(ingredients) present in them.
-Ps:unable to see the question now in grader so couldnt get the entire text.

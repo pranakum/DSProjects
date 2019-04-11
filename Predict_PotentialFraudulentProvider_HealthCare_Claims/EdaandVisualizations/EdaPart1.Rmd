@@ -1,0 +1,477 @@
+---
+title: "Phd Fraud Detection By a Provider"
+output: html_document
+---
+
+```{r}
+#Clear Workspace
+rm(list=ls(all=TRUE))
+```
+```{r}
+#set working directory
+setwd("C:/Users/Hai/Desktop/PHD/PhdData/Data")
+```
+
+```{r}
+#Load all the Libraries Required
+library(caret)
+library(DMwR)
+library(dplyr)
+```
+```{r}
+#Importing data
+#Read Train-1542865627584.csv---------------------------------------------------------------------------------------------
+data=read.csv("Train-1542865627584.csv", header=TRUE, sep=",",na.strings=c("","NA"))
+#dimensions  5410    2
+dim(data)
+#check structure  PotentialFraud Provider
+str(data)   
+#check summary
+summary(data)
+
+#check na values
+sum(is.na(data))
+#0
+```
+
+```{r}
+#Read Train_Inpatientdata-1542865627584.csv-------------------------------------------------------------------------------------------------------
+inpatient=read.csv("Train_Inpatientdata-1542865627584.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+#check dimensions 40474    30
+dim(inpatient)
+#check structure (BeneID  ClaimID Provider are common)
+str(inpatient)
+#check summary
+summary(inpatient)
+
+sum(is.na(inpatient))
+#na's =344003
+
+
+```
+```{r}
+#Read Train_Beneficiarydata-1542865627584.csv-------------------------------------------------------------------------------------------------------
+beneficiary=read.csv("Train_Beneficiarydata-1542865627584.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+#check dimensions 138556     25
+dim(beneficiary)
+#check structure
+str(beneficiary)
+#check summary BeneID
+summary(beneficiary)
+
+
+sum(is.na(beneficiary))  
+#137135
+```
+```{r}
+#Read Train_Outpatientdata-1542865627584.csv-------------------------------------------------------------------------------------------------------
+
+outpatient=read.csv("Train_Outpatientdata-1542865627584.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+#check dimensions  517737     27
+dim(outpatient)
+#check structure BeneID ClaimID 
+str(outpatient)
+#check summary
+summary(outpatient)
+
+sum(is.na(outpatient))
+#8093719
+```
+```{r}
+#Create a new column ClaimDuration from ClaimStartDt and ClaimEndDt
+inp=inpatient
+inpatient$ClaimStartDt=as.Date(inpatient$ClaimStartDt)
+inpatient$ClaimEndDt=as.Date(inpatient$ClaimEndDt)
+inpatient$ClaimDuration=inpatient$ClaimEndDt-inpatient$ClaimStartDt
+```
+```{r}
+#Checked the summary of the created column
+summary(inpatient$ClaimDuration)
+```
+```{r}
+#Removing ClaimStartDt and ClaimEndDt
+inpatient$ClaimStartDt=NULL
+inpatient$ClaimEndDt=NULL
+```
+```{r}
+#Get ClaimDuration column for outpatient also
+oup=outpatient
+outpatient$ClaimStartDt=as.Date(outpatient$ClaimStartDt)
+outpatient$ClaimEndDt=as.Date(outpatient$ClaimEndDt)
+outpatient$ClaimDuration=outpatient$ClaimEndDt-outpatient$ClaimStartDt
+#Removing ClaimStartDt and ClaimEndDt
+outpatient$ClaimStartDt=NULL
+outpatient$ClaimEndDt=NULL
+```
+
+```{r}
+#Check the summary
+summary(outpatient$ClaimDuration)
+```
+
+
+```{r}
+#Get a new column BeneAge from DOB,DOD 
+beneficiary$DOB = as.Date(beneficiary$DOB)
+beneficiary$DOD = as.Date(beneficiary$DOD)
+#We see from claim start data that it is from 2008 nov and dec or 2009
+date="2009-01-01"
+date= as.Date(date, "%Y-%m-%d")
+beneficiary$BeneAge = as.integer(ifelse(is.na(beneficiary$DOD),(date - beneficiary$DOB)/365,(beneficiary$DOD - beneficiary$DOB)/365))
+```
+```{r}
+#Check the summary of the new column BeneAge
+summary(beneficiary$BeneAge)
+```
+```{r}
+#Get a new column DaysAdmitted from DischargeDt and AdmissionDt
+inpatient$DischargeDt=as.Date(inpatient$DischargeDt)
+inpatient$AdmissionDt=as.Date(inpatient$AdmissionDt)
+inpatient$DaysAdmitted=inpatient$DischargeDt-inpatient$AdmissionDt
+#Removing DischargeDt and AdmissionDt columns
+inpatient$DischargeDt=NULL
+inpatient$AdmissionDt=NULL
+
+```
+
+```{r}
+#Check the summary of inpatient
+summary(inpatient)
+```
+
+```{r}
+#Convert the columns created from difftime to numeric(number of days)
+inpatient$ClaimDuration=as.numeric(inpatient$ClaimDuration, units = "days")
+outpatient$ClaimDuration=as.numeric(outpatient$ClaimDuration,units="days")
+inpatient$DaysAdmitted=as.numeric(inpatient$DaysAdmitted,units="days")
+```
+
+```{r}
+#Check the summary
+summary(inpatient)
+```
+```{r}
+#In outpatient add a new column DaysAdmitted with 0 value
+outpatient$DaysAdmitted=0
+```
+```{r}
+#Check the dimensions and structure of inpatient
+dim(inpatient) # 40474    28
+str(inpatient)
+
+```
+```{r}
+#Check the dimension and structure of outpatient
+dim(outpatient)#517737     27
+str(outpatient)
+```
+```{r}
+#Write to csv
+write.csv(outpatient,file = "feaoutpatient.csv",row.names=FALSE)
+write.csv(inpatient,file="feainpatient.csv",row.names=FALSE)
+
+```
+
+
+
+```{r}
+#Check dimension and structure of beneficiary
+dim(beneficiary) #138556     26
+str(beneficiary)
+```
+
+```{r}
+#Converting to categorical factors
+cols = c("State","County","Gender","NoOfMonths_PartACov","NoOfMonths_PartBCov","Race","ChronicCond_Alzheimer","ChronicCond_Heartfailure","ChronicCond_KidneyDisease","ChronicCond_Cancer","ChronicCond_ObstrPulmonary","ChronicCond_Depression","ChronicCond_Diabetes","ChronicCond_IschemicHeart","ChronicCond_Osteoporasis","ChronicCond_rheumatoidarthritis","ChronicCond_stroke")
+beneficiary[,cols] = lapply(beneficiary[,cols],as.factor)
+```
+```{r}
+#Drop DOB and DOD columns
+beneficiary$DOB=NULL
+beneficiary$DOD=NULL
+```
+
+```{r}
+#Check the summary
+summary(beneficiary)
+```
+```{r}
+#Write to csv
+write.csv(beneficiary,file="feabeneficary.csv",row.names=FALSE)
+```
+```{r}
+#Check sum of na values in each of the dataframes
+sum(is.na(inpatient))
+sum(is.na(outpatient))
+sum(is.na(beneficiary))
+```
+#---------------------------------------------------------------Merging files------------------------
+```{r}
+#Read all the csvs
+inpatient=read.csv("feainpatient.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+outpatient=read.csv("feaoutpatient.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+beneficiary=read.csv("feabeneficary.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+data=read.csv("Train-1542865627584.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+
+```
+
+```{r}
+#Check the summary
+summary(inpatient)
+#nas are present in AttendingPhysician,OperatingPhysician,OtherPhysician,ClmDiagnosisCode_2,ClmDiagnosisCode_3
+# ClmDiagnosisCode_4,ClmDiagnosisCode_5,ClmDiagnosisCode_6,ClmDiagnosisCode_7 ClmDiagnosisCode_8 ClmDiagnosisCode_9 ClmDiagnosisCode_10,ClmProcedureCode_1 ClmProcedureCode_2 ClmProcedureCode_3 ClmProcedureCode_4 ClmProcedureCode_5
+#ClmProcedureCode_6 complete column is empty
+#num:DeductibleAmtPaid
+```
+```{r}
+#Check the summary of outpatient
+summary(outpatient)
+```
+```{r}
+#Check the factor columns in inpatient and outpatient
+names(select_if(inpatient, is.factor))
+names(select_if(outpatient,is.factor))
+```
+
+```{r}
+#Check the summary
+summary(inpatient)
+```
+
+```{r}
+#Adding new column DiagnosisGroupCode in outpatient to match with inpatient column
+outpatient$DiagnosisGroupCode="NotApp"
+#Converting to factor
+outpatient$DiagnosisGroupCode=as.factor(outpatient$DiagnosisGroupCode)
+summary(outpatient$DiagnosisGroupCode)
+```
+```{r}
+#Apply union_all on outpatient and inpatient
+patientdata=union_all(outpatient,inpatient)
+```
+```{r}
+#Check the structure
+str(patientdata)
+```
+```{r}
+#Check the character columns
+names <- names(select_if(patientdata,is.character))
+names
+```
+
+```{r}
+#Convert character columns to factor
+patientdata[,names] <- lapply(patientdata[,names] , factor)
+str(patientdata)
+```
+
+
+
+
+```{r}
+#Check nas in ClmProcedureCode_1
+sum(is.na(patientdata$ClmProcedureCode_1))
+```
+```{r}
+#Select only few numeric attributes which have nas
+intcolumns <- names(select_if(patientdata,is.numeric))
+intcolumns=intcolumns[2:6]
+intcolumns
+```
+
+```{r}
+#User Defined Function to add "NotApp" in place of Na values
+ReplaceNaUdf = function(column){
+ ifelse(is.na(column),"NotApp",column)
+}
+```
+
+```{r}
+#Replace the nas for the intcolumns
+patientdata[,intcolumns] <- sapply(patientdata[,intcolumns] , function(x) ReplaceNaUdf(x))
+str(patientdata)
+
+```
+```{r}
+#Check character columns
+names <- names(select_if(patientdata,is.character))
+names
+```
+```{r}
+#Convert character to factor
+patientdata[,names] <- lapply(patientdata[,names] , factor)
+str(patientdata)
+```
+```{r}
+#Select factorcolumns
+factorcolumns <- names(select_if(patientdata,is.factor))
+factorcolumns=factorcolumns[4:22]
+factorcolumns= factorcolumns[-18]
+factorcolumns
+```
+```{r}
+#Check summary
+summary(patientdata) 
+#nas are present in 
+#factors:AttendingPhysician,OperatingPhysician   OtherPhysician   ClmDiagnosisCode_1 ClmDiagnosisCode_2 ClmDiagnosisCode_3 ClmDiagnosisCode_4 ClmDiagnosisCode_5 ClmDiagnosisCode_6 ClmDiagnosisCode_7 ClmDiagnosisCode_8 ClmDiagnosisCode_9 ClmDiagnosisCode_10
+
+#int:
+```
+```{r}
+#Function for replacing nas
+ReplaceNaFactorUdf = function(column){
+factor(ifelse(is.na(column), "NotApp", paste(column)))
+}
+```
+```{r}
+#Replace nas for factorcolumns with "NotApp"
+d=patientdata
+d[,factorcolumns] <- sapply(d[,factorcolumns] , function(x) ReplaceNaFactorUdf(x))
+str(d)
+```
+```{r}
+patientdata=d
+
+```
+
+```{r}
+#Check summary
+summary(patientdata)
+```
+
+```{r}
+
+# ClmProcedureCode_6 has all nas so filling with NotApp
+patientdata$ClmProcedureCode_6="NotApp"
+
+```
+```{r}
+#Check nas 
+sum(is.na(patientdata)) 
+```
+```{r}
+#Write to csv
+str(patientdata) 
+write.csv(patientdata,file="Imputed_PatientFactors.csv",row.names=FALSE)
+```
+
+```{r}
+#intcolumns selection where nas are still present
+intcolumns <- names(select_if(patientdata,is.numeric))
+intcolumns[2]
+```
+```{r}
+# one numeric column DeductibleAmtPaid still has na's replace with median
+str(patientdata)
+```
+```{r}
+#Replace na with median value
+d1=patientdata
+patientdata$DeductibleAmtPaid[is.na(patientdata$DeductibleAmtPaid)] =median(patientdata$DeductibleAmtPaid, na.rm=TRUE)
+```
+```{r}
+#Check sum of na values
+sum(is.na(patientdata))
+```
+```{r}
+str(patientdata)
+```
+
+```{r}
+#Write to csv
+write.csv(patientdata,file="Imputed_PatientData1.csv",row.names=FALSE)
+```
+#-----------------------Merge Files---------------------------------------
+
+```{r}
+#Clear workingspace
+rm(list=ls(all=TRUE))
+```
+```{r}
+#set working directory
+setwd("C:/Users/Hai/Desktop/PHD/PhdData/Data")
+```
+
+```{r}
+#Load all the Libraries Required
+library(caret)
+library(DMwR)
+library(dplyr)
+```
+```{r}
+#Load the saved csv data
+beneficiary=read.csv("feabeneficary.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+data=read.csv("Train-1542865627584.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+Imputed_PatientData=read.csv("Imputed_PatientData1.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+```
+
+```{r}
+#Check the summary
+summary(data)
+summary(Imputed_PatientData)
+summary(beneficiary)
+```
+
+
+```{r}
+#Check the structure
+str(data)
+str(Imputed_PatientData)
+str(beneficiary)
+```
+
+```{r}
+#Merge the ImputedPatientData with beneficiary 
+patientBenfeciaryData=merge(Imputed_PatientData,beneficiary)
+```
+
+```{r}
+#Check dimensions
+dim(patientBenfeciaryData)
+#558211     51
+#Merge the patientBeneficiaryData and data(with target)
+mergedtrain=merge(patientBenfeciaryData,data)
+dim(mergedtrain) # 558211     52
+```
+
+```{r}
+#Write into csv
+write.csv(mergedtrain,file="MergedFullData.csv",row.names=FALSE)
+```
+
+```{r}
+#Write into csv
+write.csv(patientBenfeciaryData,file="patientBenfeciaryData.csv",row.names=FALSE)
+```
+
+```{r}
+#Read the merged data
+mergedtrain=read.csv("MergedFullData.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+```
+```{r}
+#Check the structure
+str(mergedtrain)
+```
+
+```{r}
+#Cross check na values
+sum(is.na(mergedtrain)) 
+```
+
+
+```{r}
+#Get the vector for numeric attributes to convert to factor
+numcolumns <- names(select_if(mergedtrain,is.numeric))
+numcolumns=c("Gender","Race","State","County","ChronicCond_Alzheimer","ChronicCond_Heartfailure","ChronicCond_KidneyDisease","ChronicCond_Cancer","ChronicCond_ObstrPulmonary","ChronicCond_Depression","ChronicCond_Diabetes",     "ChronicCond_IschemicHeart","ChronicCond_Osteoporasis","ChronicCond_rheumatoidarthritis","ChronicCond_stroke")
+numcolumns
+```
+```{r}
+#Convert the numcolumns to factor
+mergedtrain[,numcolumns] <- lapply(mergedtrain[,numcolumns] , factor)
+str(mergedtrain)
+```
+```{r}
+#Write to csv
+write.csv(mergedtrain,file="FinalMergeData.csv",row.names=FALSE)
+```
+#We have converted all the dataset information into One file FinalMergeData.csv.Load the file in python for visualization and furthur analysis.

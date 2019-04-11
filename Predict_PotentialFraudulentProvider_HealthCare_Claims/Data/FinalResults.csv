@@ -1,0 +1,12 @@
+ModelName,Preprocessing,ComputationTime,F1scoreTrain,F1scoreVal,F1scoreTest
+DecisionTreeRpart,Smote 900:100,2.93,0.964487,0.4533333,0.37
+DecisionTreerpart,"Smote 600:120,nearzerovariance",2.47,0.9384152,0.4109015,NA
+Naïve Bayes,Smote  900:100,2.92,0.8392659,0.3157895,NA
+LogisticRegression,"Smote 600:120,nearzerovariance",8.64,0.8390874,0.3529412,0.34
+XgbafterLogisticSigVariables,"Smote 600:120,nearzerovariance",13.57,0.9965843,0.4523282,0.41
+Xgbcv,Smote 900:100,60.89,0.9998592,0.509915,0.43
+Rfcv,Smote 900:100,13.86,1,0.5429363,0.42
+Rfgrid,"Smote 600:120,nearzerovariance",2000.5,0.9663682,0.4729459,0.4
+Xgbcv,"Smote 600:120,nearzerovariance",35.77,0.9993965,0.4691358,0.45
+Rftop20,Smote 900:100,9.78,1,0.5333333,NA
+Xgbgrid,Smote 900:100,417.33,0.9998592,0.5287356,0.42

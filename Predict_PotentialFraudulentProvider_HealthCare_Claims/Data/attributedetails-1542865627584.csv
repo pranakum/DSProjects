@@ -1,0 +1,31 @@
+"Inpatientfileattrs","Inpatientfileattributes_Description","Outpatientfileattrs","Outpatientfileattributes_Description","Beneficiaryfileattrs","Beneficiaryfileattributes_Description"
+"BeneID","Beneficiary id ","BeneID","Beneficiary id ","BeneID","Beneficiary id "
+"ClaimID","claim id","ClaimID","claim id","DOB","Date of birth"
+"ClaimStartDt","claim start date","ClaimStartDt","claim start date","DOD","date of death"
+"ClaimEndDt","claim end date","ClaimEndDt","claim end date","Gender","Gender"
+"Provider","provider id","Provider","provider id","Race","Race"
+"InscClaimAmtReimbursed","Claim amount reimbursed to the Provider based on bill & coverage details","InscClaimAmtReimbursed","Claim amount reimbursed to the Provider based on bill & coverage details","RenalDiseaseIndicator","IF RDI is there"
+"AttendingPhysician","Attending physician ID","AttendingPhysician","Attending physician ID","State","state"
+"OperatingPhysician","Operating physician id","OperatingPhysician","Operating physician id","County","county"
+"OtherPhysician","Other physician id","OtherPhysician","Other physician id","NoOfMonths_PartACov","#months for partA coverage(Inpatient)"
+"AdmissionDt","date of admission","ClmDiagnosisCode_1","Claim diagnosis code 1","NoOfMonths_PartBCov","#months for PartB coverage(outpatient)"
+"ClmAdmitDiagnosisCode","diagnosis code of admission","ClmDiagnosisCode_2","Claim diagnosis code 2","ChronicCond_Alzheimer","Chronic condition (1-yes, 2- No)"
+"DeductibleAmtPaid","Deductible amount borne by the beneficairy","ClmDiagnosisCode_3","Claim diagnosis code 3","ChronicCond_Heartfailure","Chronic condition (1-yes, 2- No)"
+"DischargeDt","date of discharge","ClmDiagnosisCode_4","Claim diagnosis code 4","ChronicCond_KidneyDisease","Chronic condition (1-yes, 2- No)"
+"DiagnosisGroupCode","Diagnosis related group code ","ClmDiagnosisCode_5","Claim diagnosis code 5","ChronicCond_Cancer","Chronic condition (1-yes, 2- No)"
+"ClmDiagnosisCode_1","Claim diagnosis code 1","ClmDiagnosisCode_6","Claim diagnosis code 6","ChronicCond_ObstrPulmonary","Chronic condition (1-yes, 2- No)"
+"ClmDiagnosisCode_2","Claim diagnosis code 2","ClmDiagnosisCode_7","Claim diagnosis code 7","ChronicCond_Depression","Chronic condition (1-yes, 2- No)"
+"ClmDiagnosisCode_3","Claim diagnosis code 3","ClmDiagnosisCode_8","Claim diagnosis code 8","ChronicCond_Diabetes","Chronic condition (1-yes, 2- No)"
+"ClmDiagnosisCode_4","Claim diagnosis code 4","ClmDiagnosisCode_9","Claim diagnosis code 9","ChronicCond_IschemicHeart","Chronic condition (1-yes, 2- No)"
+"ClmDiagnosisCode_5","Claim diagnosis code 5","ClmDiagnosisCode_10","Claim diagnosis code 10","ChronicCond_Osteoporasis","Chronic condition (1-yes, 2- No)"
+"ClmDiagnosisCode_6","Claim diagnosis code 6","ClmProcedureCode_1","claim procedure code 1","ChronicCond_rheumatoidarthritis","Chronic condition (1-yes, 2- No)"
+"ClmDiagnosisCode_7","Claim diagnosis code 7","ClmProcedureCode_2","claim procedure code 2","ChronicCond_stroke","Chronic condition (1-yes, 2- No)"
+"ClmDiagnosisCode_8","Claim diagnosis code 8","ClmProcedureCode_3","claim procedure code 3","IPAnnualReimbursementAmt","Inpatient annual reimbursement amount to the provider (coverage limit)"
+"ClmDiagnosisCode_9","Claim diagnosis code 9","ClmProcedureCode_4","claim procedure code 4","IPAnnualDeductibleAmt","Inpatient deductible amount under the plan"
+"ClmDiagnosisCode_10","Claim diagnosis code 10","ClmProcedureCode_5","claim procedure code 5","OPAnnualReimbursementAmt","Outpatient annual reimbursement amount to the provider (coverage limit)"
+"ClmProcedureCode_1","claim procedure code 1","ClmProcedureCode_6","claim procedure code 6","OPAnnualDeductibleAmt","Outpatient deductible amount under the plan"
+"ClmProcedureCode_2","claim procedure code 2","DeductibleAmtPaid","Deductible amount borne by the beneficairy",,
+"ClmProcedureCode_3","claim procedure code 3","ClmAdmitDiagnosisCode","diagnosis code of admission",,
+"ClmProcedureCode_4","claim procedure code 4",,,,
+"ClmProcedureCode_5","claim procedure code 5",,,,
+"ClmProcedureCode_6","claim procedure code 6",,,,

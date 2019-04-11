@@ -1,0 +1,9 @@
+Problem 2: Predict the food rating based on Customer review.
+
+This problem aims at understanding the customer preferences based on the text reviews.
+
+Client will utilize this model to plan promotional and marketing campaigns and also understand customer choices.
+
+ 
+
+Files: Train    Test

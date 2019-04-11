@@ -1,0 +1,3157 @@
+---
+title: "Phd Final Report"
+output: html_document
+---
+#Business Case:
+Predicting the  potential fraudulent Provider under healthcare claims
+
+Problem:
+
+Health Care Insurance Fraud is such a prevalent and major concern in today's world as it very difficult to detect manually without appropriate tools.The impact of health care fraud is huge on the economy as it accounts for significant portion of tax dollars.Insurance Fraud can be committed either by the insured persons,providers or physicians.We are focussing on Fraud by providers as part of our problem..
+Some of the types of fraud of providers are as follows:
+1.Phantom billing: The medical provider bills Medicare for unnecessary procedures, or procedures that are never performed; for unnecessary medical tests or tests never performed; for unnecessary equipment; or equipment that is billed as new but is, in fact, used.
+2.Patient billing: A patient who is in on the scam provides his or her Medicare number in exchange for kickbacks. The provider bills Medicare for any reason and the patient is told to admit that he or she indeed received the medical treatment.
+3.Upcoding scheme and unbundling: Inflating bills by using a billing code that indicates the patient needs expensive procedures.
+These type of patterns need to be detected ysing predictive models so that the source of the fraud can be detected.
+Based on the claims' data the Insurer can categorize a Provider as one with high propensity for fraud or otherwise. Insurer scores each Provider for fraud based on attributes developed by collecting and assessing historical information of claims for patterns. If a provider is assessed to be potentially fraudulent, the insurer forwards claims from such providers to SIU (Special Investigation Unit) for Investigation and collection of evidence for reporting of fraud. 
+We are required to predict each Provider for being potentially fraudulent or otherwise based on the claims data provided.
+
+
+# ML problem statement:
+
+To create an analytical and modelling framework to predict the potential fraud (Yes/No) by provider for submission of fraudulent claims to the insurer for reimbursement of claim amounts.
+
+#Data Exploration
+
+```{r}
+#Clear Workspace
+rm(list=ls(all=TRUE))
+```
+```{r}
+#set working directory
+setwd("C:/Users/Hai/Desktop/PHD/PhdData/Data")
+```
+
+```{r}
+#Load all the Libraries Required
+library(caret)
+library(DMwR)
+library(dplyr)
+```
+```{r}
+#Importing data
+#Read Train-1542865627584.csv---------------------------------------------------------------------------------------------
+data=read.csv("Train-1542865627584.csv", header=TRUE, sep=",",na.strings=c("","NA"))
+#dimensions  5410    2
+dim(data)
+#check structure  PotentialFraud Provider
+str(data)   
+#check summary
+summary(data)
+
+#check na values
+sum(is.na(data))
+#0
+```
+
+```{r}
+#Read Train_Inpatientdata-1542865627584.csv-------------------------------------------------------------------------------------------------------
+inpatient=read.csv("Train_Inpatientdata-1542865627584.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+#check dimensions 40474    30
+dim(inpatient)
+#check structure (BeneID  ClaimID Provider are common)
+str(inpatient)
+#check summary
+summary(inpatient)
+
+sum(is.na(inpatient))
+#na's =344003
+
+
+```
+```{r}
+#Read Train_Beneficiarydata-1542865627584.csv-------------------------------------------------------------------------------------------------------
+beneficiary=read.csv("Train_Beneficiarydata-1542865627584.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+#check dimensions 138556     25
+dim(beneficiary)
+#check structure
+str(beneficiary)
+#check summary BeneID
+summary(beneficiary)
+
+
+sum(is.na(beneficiary))  
+#137135
+```
+```{r}
+#Read Train_Outpatientdata-1542865627584.csv-------------------------------------------------------------------------------------------------------
+
+outpatient=read.csv("Train_Outpatientdata-1542865627584.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+#check dimensions  517737     27
+dim(outpatient)
+#check structure BeneID ClaimID 
+str(outpatient)
+#check summary
+summary(outpatient)
+
+sum(is.na(outpatient))
+#8093719
+```
+```{r}
+#Create a new column ClaimDuration from ClaimStartDt and ClaimEndDt
+inp=inpatient
+inpatient$ClaimStartDt=as.Date(inpatient$ClaimStartDt)
+inpatient$ClaimEndDt=as.Date(inpatient$ClaimEndDt)
+inpatient$ClaimDuration=inpatient$ClaimEndDt-inpatient$ClaimStartDt
+```
+```{r}
+#Checked the summary of the created column
+summary(inpatient$ClaimDuration)
+```
+```{r}
+#Removing ClaimStartDt and ClaimEndDt
+inpatient$ClaimStartDt=NULL
+inpatient$ClaimEndDt=NULL
+```
+```{r}
+#Get ClaimDuration column for outpatient also
+oup=outpatient
+outpatient$ClaimStartDt=as.Date(outpatient$ClaimStartDt)
+outpatient$ClaimEndDt=as.Date(outpatient$ClaimEndDt)
+outpatient$ClaimDuration=outpatient$ClaimEndDt-outpatient$ClaimStartDt
+#Removing ClaimStartDt and ClaimEndDt
+outpatient$ClaimStartDt=NULL
+outpatient$ClaimEndDt=NULL
+```
+
+```{r}
+#Check the summary
+summary(outpatient$ClaimDuration)
+```
+
+
+```{r}
+#Get a new column BeneAge from DOB,DOD 
+beneficiary$DOB = as.Date(beneficiary$DOB)
+beneficiary$DOD = as.Date(beneficiary$DOD)
+#We see from claim start data that it is from 2008 nov and dec or 2009
+date="2009-01-01"
+date= as.Date(date, "%Y-%m-%d")
+beneficiary$BeneAge = as.integer(ifelse(is.na(beneficiary$DOD),(date - beneficiary$DOB)/365,(beneficiary$DOD - beneficiary$DOB)/365))
+```
+```{r}
+#Check the summary of the new column BeneAge
+summary(beneficiary$BeneAge)
+```
+```{r}
+#Get a new column DaysAdmitted from DischargeDt and AdmissionDt
+inpatient$DischargeDt=as.Date(inpatient$DischargeDt)
+inpatient$AdmissionDt=as.Date(inpatient$AdmissionDt)
+inpatient$DaysAdmitted=inpatient$DischargeDt-inpatient$AdmissionDt
+#Removing DischargeDt and AdmissionDt columns
+inpatient$DischargeDt=NULL
+inpatient$AdmissionDt=NULL
+
+```
+
+```{r}
+#Check the summary of inpatient
+summary(inpatient)
+```
+
+```{r}
+#Convert the columns created from difftime to numeric(number of days)
+inpatient$ClaimDuration=as.numeric(inpatient$ClaimDuration, units = "days")
+outpatient$ClaimDuration=as.numeric(outpatient$ClaimDuration,units="days")
+inpatient$DaysAdmitted=as.numeric(inpatient$DaysAdmitted,units="days")
+```
+
+```{r}
+#Check the summary
+summary(inpatient)
+```
+```{r}
+#In outpatient add a new column DaysAdmitted with 0 value
+outpatient$DaysAdmitted=0
+```
+```{r}
+#Check the dimensions and structure of inpatient
+dim(inpatient) # 40474    28
+str(inpatient)
+
+```
+```{r}
+#Check the dimension and structure of outpatient
+dim(outpatient)#517737     27
+str(outpatient)
+```
+```{r}
+#Write to csv
+write.csv(outpatient,file = "feaoutpatient.csv",row.names=FALSE)
+write.csv(inpatient,file="feainpatient.csv",row.names=FALSE)
+
+```
+
+
+
+```{r}
+#Check dimension and structure of beneficiary
+dim(beneficiary) #138556     26
+str(beneficiary)
+```
+
+```{r}
+#Converting to categorical factors
+cols = c("State","County","Gender","NoOfMonths_PartACov","NoOfMonths_PartBCov","Race","ChronicCond_Alzheimer","ChronicCond_Heartfailure","ChronicCond_KidneyDisease","ChronicCond_Cancer","ChronicCond_ObstrPulmonary","ChronicCond_Depression","ChronicCond_Diabetes","ChronicCond_IschemicHeart","ChronicCond_Osteoporasis","ChronicCond_rheumatoidarthritis","ChronicCond_stroke")
+beneficiary[,cols] = lapply(beneficiary[,cols],as.factor)
+```
+```{r}
+#Drop DOB and DOD columns
+beneficiary$DOB=NULL
+beneficiary$DOD=NULL
+```
+
+```{r}
+#Check the summary
+summary(beneficiary)
+```
+```{r}
+#Write to csv
+write.csv(beneficiary,file="feabeneficary.csv",row.names=FALSE)
+```
+```{r}
+#Check sum of na values in each of the dataframes
+sum(is.na(inpatient))
+sum(is.na(outpatient))
+sum(is.na(beneficiary))
+```
+#---------------------------------------------------------------Merging files------------------------
+```{r}
+#Read all the csvs
+inpatient=read.csv("feainpatient.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+outpatient=read.csv("feaoutpatient.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+beneficiary=read.csv("feabeneficary.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+data=read.csv("Train-1542865627584.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+
+```
+
+```{r}
+#Check the summary
+summary(inpatient)
+#nas are present in AttendingPhysician,OperatingPhysician,OtherPhysician,ClmDiagnosisCode_2,ClmDiagnosisCode_3
+# ClmDiagnosisCode_4,ClmDiagnosisCode_5,ClmDiagnosisCode_6,ClmDiagnosisCode_7 ClmDiagnosisCode_8 ClmDiagnosisCode_9 ClmDiagnosisCode_10,ClmProcedureCode_1 ClmProcedureCode_2 ClmProcedureCode_3 ClmProcedureCode_4 ClmProcedureCode_5
+#ClmProcedureCode_6 complete column is empty
+#num:DeductibleAmtPaid
+```
+```{r}
+#Check the summary of outpatient
+summary(outpatient)
+```
+```{r}
+#Check the factor columns in inpatient and outpatient
+names(select_if(inpatient, is.factor))
+names(select_if(outpatient,is.factor))
+```
+
+```{r}
+#Check the summary
+summary(inpatient)
+```
+
+```{r}
+#Adding new column DiagnosisGroupCode in outpatient to match with inpatient column
+outpatient$DiagnosisGroupCode="NotApp"
+#Converting to factor
+outpatient$DiagnosisGroupCode=as.factor(outpatient$DiagnosisGroupCode)
+summary(outpatient$DiagnosisGroupCode)
+```
+```{r}
+#Apply union_all on outpatient and inpatient
+patientdata=union_all(outpatient,inpatient)
+```
+```{r}
+#Check the structure
+str(patientdata)
+```
+```{r}
+#Check the character columns
+names <- names(select_if(patientdata,is.character))
+names
+```
+
+```{r}
+#Convert character columns to factor
+patientdata[,names] <- lapply(patientdata[,names] , factor)
+str(patientdata)
+```
+
+
+
+
+```{r}
+#Check nas in ClmProcedureCode_1
+sum(is.na(patientdata$ClmProcedureCode_1))
+```
+```{r}
+#Select only few numeric attributes which have nas
+intcolumns <- names(select_if(patientdata,is.numeric))
+intcolumns=intcolumns[2:6]
+intcolumns
+```
+
+```{r}
+#User Defined Function to add "NotApp" in place of Na values
+ReplaceNaUdf = function(column){
+ ifelse(is.na(column),"NotApp",column)
+}
+```
+
+```{r}
+#Replace the nas for the intcolumns
+patientdata[,intcolumns] <- sapply(patientdata[,intcolumns] , function(x) ReplaceNaUdf(x))
+str(patientdata)
+
+```
+```{r}
+#Check character columns
+names <- names(select_if(patientdata,is.character))
+names
+```
+```{r}
+#Convert character to factor
+patientdata[,names] <- lapply(patientdata[,names] , factor)
+str(patientdata)
+```
+```{r}
+#Select factorcolumns
+factorcolumns <- names(select_if(patientdata,is.factor))
+factorcolumns=factorcolumns[4:22]
+factorcolumns= factorcolumns[-18]
+factorcolumns
+```
+```{r}
+#Check summary
+summary(patientdata) 
+#nas are present in 
+#factors:AttendingPhysician,OperatingPhysician   OtherPhysician   ClmDiagnosisCode_1 ClmDiagnosisCode_2 ClmDiagnosisCode_3 ClmDiagnosisCode_4 ClmDiagnosisCode_5 ClmDiagnosisCode_6 ClmDiagnosisCode_7 ClmDiagnosisCode_8 ClmDiagnosisCode_9 ClmDiagnosisCode_10
+
+#int:
+```
+```{r}
+#Function for replacing nas
+ReplaceNaFactorUdf = function(column){
+factor(ifelse(is.na(column), "NotApp", paste(column)))
+}
+```
+```{r}
+#Replace nas for factorcolumns with "NotApp"
+d=patientdata
+d[,factorcolumns] <- sapply(d[,factorcolumns] , function(x) ReplaceNaFactorUdf(x))
+str(d)
+```
+```{r}
+patientdata=d
+
+```
+
+```{r}
+#Check summary
+summary(patientdata)
+```
+
+```{r}
+
+# ClmProcedureCode_6 has all nas so filling with NotApp
+patientdata$ClmProcedureCode_6="NotApp"
+
+```
+```{r}
+#Check nas 
+sum(is.na(patientdata)) 
+```
+```{r}
+#Write to csv
+str(patientdata) 
+write.csv(patientdata,file="Imputed_PatientFactors.csv",row.names=FALSE)
+```
+
+```{r}
+#intcolumns selection where nas are still present
+intcolumns <- names(select_if(patientdata,is.numeric))
+intcolumns[2]
+```
+```{r}
+# one numeric column DeductibleAmtPaid still has na's replace with median
+str(patientdata)
+```
+```{r}
+#Replace na with median value
+d1=patientdata
+patientdata$DeductibleAmtPaid[is.na(patientdata$DeductibleAmtPaid)] =median(patientdata$DeductibleAmtPaid, na.rm=TRUE)
+```
+```{r}
+#Check sum of na values
+sum(is.na(patientdata))
+```
+```{r}
+str(patientdata)
+```
+
+```{r}
+#Write to csv
+write.csv(patientdata,file="Imputed_PatientData1.csv",row.names=FALSE)
+```
+#-----------------------Merge Files---------------------------------------------------------------------
+
+```{r}
+#Clear workingspace
+#rm(list=ls(all=TRUE))
+```
+```{r}
+#set working directory
+#setwd("C:/Users/Hai/Desktop/PHD/PhdData/Data")
+```
+
+```{r}
+#Load all the Libraries Required
+library(caret)
+library(DMwR)
+library(dplyr)
+```
+```{r}
+#Load the saved csv data
+beneficiary=read.csv("feabeneficary.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+data=read.csv("Train-1542865627584.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+Imputed_PatientData=read.csv("Imputed_PatientData1.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+```
+
+```{r}
+#Check the summary
+summary(data)
+summary(Imputed_PatientData)
+summary(beneficiary)
+```
+
+
+```{r}
+#Check the structure
+str(data)
+str(Imputed_PatientData)
+str(beneficiary)
+```
+
+```{r}
+#Merge the ImputedPatientData with beneficiary 
+patientBenfeciaryData=merge(Imputed_PatientData,beneficiary)
+```
+
+```{r}
+#Check dimensions
+dim(patientBenfeciaryData)
+#558211     51
+#Merge the patientBeneficiaryData and data(with target)
+mergedtrain=merge(patientBenfeciaryData,data)
+dim(mergedtrain) # 558211     52
+```
+
+```{r}
+#Write into csv
+write.csv(mergedtrain,file="MergedFullData.csv",row.names=FALSE)
+```
+
+```{r}
+#Write into csv
+write.csv(patientBenfeciaryData,file="patientBenfeciaryData.csv",row.names=FALSE)
+```
+
+```{r}
+#Read the merged data
+mergedtrain=read.csv("MergedFullData.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+```
+```{r}
+#Check the structure
+str(mergedtrain)
+```
+
+```{r}
+#Cross check na values
+sum(is.na(mergedtrain)) 
+```
+
+
+```{r}
+#Get the vector for numeric attributes to convert to factor
+numcolumns <- names(select_if(mergedtrain,is.numeric))
+numcolumns=c("Gender","Race","State","County","ChronicCond_Alzheimer","ChronicCond_Heartfailure","ChronicCond_KidneyDisease","ChronicCond_Cancer","ChronicCond_ObstrPulmonary","ChronicCond_Depression","ChronicCond_Diabetes",     "ChronicCond_IschemicHeart","ChronicCond_Osteoporasis","ChronicCond_rheumatoidarthritis","ChronicCond_stroke")
+numcolumns
+```
+```{r}
+#Convert the numcolumns to factor
+mergedtrain[,numcolumns] <- lapply(mergedtrain[,numcolumns] , factor)
+str(mergedtrain)
+```
+```{r}
+#Write to csv
+write.csv(mergedtrain,file="FinalMergeData.csv",row.names=FALSE)
+```
+#We have converted all the dataset information into One file FinalMergeData.csv.Load the file in python for visualization and furthur analysis.
+```{r}
+#Read the merged data
+mergedtrain=read.csv("FinalMergeData.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+```
+```{r}
+mergeddf=mergedtrain
+str(mergedtrain)
+```
+```{r}
+#intcolumns type
+intcolumns <- names(select_if(mergedtrain,is.numeric))
+intcolumns=intcolumns[5:21]
+intcolumns=intcolumns[-5]
+intcolumns=intcolumns[-5]
+intcolumns
+```
+```{r}
+#Convert int to factor
+mergedtrain[,intcolumns] <- lapply(mergedtrain[,intcolumns] , factor)
+str(mergedtrain)
+```
+
+
+```{r}
+getmode <- function(v) {
+  levels(v)[which.max(table(v))]
+}
+```
+
+```{r}
+my_summary <- function(x, id, ...){
+  if (is.numeric(x)) {
+    return(tapply(x, id, mean))
+  }  
+  if (is.factor(x)) {
+    return(tapply(x, id, getmode))
+  }  
+}
+```
+```{r}
+providerdata= data.frame(lapply(mergedtrain, my_summary, id = mergedtrain$Provider))
+```
+```{r}
+providerdata
+```
+```{r}
+providerdata$PotentialFraud
+```
+```{r}
+#Write to csv
+write.csv(providerdata,file="Providertrain1.csv",row.names=FALSE)
+```
+```{r}
+providertrain=read.csv("Providertrain1.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+```
+
+
+
+
+
+
+
+
+
+
+#Repeat the same process with test files
+
+```{r}
+#Clear Workspace
+#rm(list=ls(all=TRUE))
+```
+```{r}
+#set working directory
+#setwd("C:/Users/Hai/Desktop/PHD/PhdData/Data")
+```
+
+```{r}
+#Load all the Libraries Required
+#library(caret)
+#library(DMwR)
+#library(dplyr)
+```
+```{r}
+#Importing data
+#Read PHD_Test-1542969243754.csv---------------------------------------------------------------------------------------------
+testdata=read.csv("PHD_Test-1542969243754.csv", header=TRUE, sep=",",na.strings=c("","NA"))
+#dimensions  1353    1
+dim(testdata)
+#check structure  PotentialFraud Provider
+str(testdata)   
+#check summary
+summary(testdata)
+
+#check na values
+sum(is.na(testdata))
+#0
+```
+
+```{r}
+#Read Test_Inpatientdata-1542969243754.csv-------------------------------------------------------------------------------------------------------
+inpatienttest=read.csv("Test_Inpatientdata-1542969243754.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+#check dimensions 9551   30
+dim(inpatienttest)
+#check structure (BeneID  ClaimID Provider are common)
+str(inpatienttest)
+#check summary
+summary(inpatienttest)
+
+sum(is.na(inpatienttest))
+#na's =81633
+
+
+```
+```{r}
+#Read Test_Beneficiarydata-1542969243754.csv-------------------------------------------------------------------------------------------------------
+beneficiarytest=read.csv("Test_Beneficiarydata-1542969243754.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+#check dimensions 63968    25
+dim(beneficiarytest)
+#check structure
+str(beneficiarytest)
+#check summary BeneID
+summary(beneficiarytest)
+
+
+sum(is.na(beneficiarytest))  
+#63394
+```
+```{r}
+#Read Test_Outpatientdata-1542969243754.csv-------------------------------------------------------------------------------------------------------
+
+outpatienttest=read.csv("Test_Outpatientdata-1542969243754.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+#check dimensions   125841     27
+dim(outpatienttest)
+#check structure BeneID ClaimID 
+str(outpatienttest)
+#check summary
+summary(outpatienttest)
+
+sum(is.na(outpatienttest))
+#1968014
+```
+```{r}
+#Create a new column ClaimDuration from ClaimStartDt and ClaimEndDt
+#inp=inpatient
+inpatienttest$ClaimStartDt=as.Date(inpatienttest$ClaimStartDt)
+inpatienttest$ClaimEndDt=as.Date(inpatienttest$ClaimEndDt)
+inpatienttest$ClaimDuration=inpatienttest$ClaimEndDt-inpatienttest$ClaimStartDt
+```
+```{r}
+#Checked the summary of the created column
+summary(inpatienttest$ClaimDuration)
+```
+```{r}
+#Removing ClaimStartDt and ClaimEndDt
+inpatienttest$ClaimStartDt=NULL
+inpatienttest$ClaimEndDt=NULL
+```
+```{r}
+#Get ClaimDuration column for outpatient also
+
+outpatienttest$ClaimStartDt=as.Date(outpatienttest$ClaimStartDt)
+outpatienttest$ClaimEndDt=as.Date(outpatienttest$ClaimEndDt)
+outpatienttest$ClaimDuration=outpatienttest$ClaimEndDt-outpatienttest$ClaimStartDt
+#Removing ClaimStartDt and ClaimEndDt
+outpatienttest$ClaimStartDt=NULL
+outpatienttest$ClaimEndDt=NULL
+```
+
+```{r}
+#Check the summary
+summary(outpatienttest$ClaimDuration)
+```
+
+
+```{r}
+#Get a new column BeneAge from DOB,DOD 
+beneficiarytest$DOB = as.Date(beneficiarytest$DOB)
+beneficiarytest$DOD = as.Date(beneficiarytest$DOD)
+#We see from claim start data that it is from 2008 nov and dec or 2009
+date="2009-01-01"
+date= as.Date(date, "%Y-%m-%d")
+beneficiarytest$BeneAge = as.integer(ifelse(is.na(beneficiarytest$DOD),(date - beneficiarytest$DOB)/365,(beneficiarytest$DOD - beneficiarytest$DOB)/365))
+```
+```{r}
+#Check the summary of the new column BeneAge
+summary(beneficiarytest$BeneAge)
+```
+```{r}
+#Get a new column DaysAdmitted from DischargeDt and AdmissionDt
+inpatienttest$DischargeDt=as.Date(inpatienttest$DischargeDt)
+inpatienttest$AdmissionDt=as.Date(inpatienttest$AdmissionDt)
+inpatienttest$DaysAdmitted=inpatienttest$DischargeDt-inpatienttest$AdmissionDt
+#Removing DischargeDt and AdmissionDt columns
+inpatienttest$DischargeDt=NULL
+inpatienttest$AdmissionDt=NULL
+
+```
+
+```{r}
+#Check the summary of inpatienttest
+summary(inpatienttest)
+```
+
+```{r}
+#Convert the columns created from difftime to numeric(number of days)
+inpatienttest$ClaimDuration=as.numeric(inpatienttest$ClaimDuration, units = "days")
+outpatienttest$ClaimDuration=as.numeric(outpatienttest$ClaimDuration,units="days")
+inpatienttest$DaysAdmitted=as.numeric(inpatienttest$DaysAdmitted,units="days")
+```
+
+```{r}
+#Check the summary
+summary(inpatienttest)
+```
+```{r}
+#In outpatient add a new column DaysAdmitted with 0 value
+outpatienttest$DaysAdmitted=0
+```
+```{r}
+#Check the dimensions and structure of inpatient
+dim(inpatienttest) # 9551   28
+str(inpatienttest)
+
+```
+```{r}
+#Check the dimension and structure of outpatient
+dim(outpatienttest)#125841     27
+str(outpatienttest)#125841     27
+```
+```{r}
+#Write to csv
+write.csv(outpatienttest,file = "feaoutpatienttest.csv",row.names=FALSE)
+write.csv(inpatienttest,file="feainpatienttest.csv",row.names=FALSE)
+
+```
+
+
+
+```{r}
+#Check dimension and structure of beneficiary
+dim(beneficiarytest) #63968    26
+str(beneficiarytest)
+```
+
+```{r}
+#Converting to categorical factors
+cols = c("State","County","Gender","NoOfMonths_PartACov","NoOfMonths_PartBCov","Race","ChronicCond_Alzheimer","ChronicCond_Heartfailure","ChronicCond_KidneyDisease","ChronicCond_Cancer","ChronicCond_ObstrPulmonary","ChronicCond_Depression","ChronicCond_Diabetes","ChronicCond_IschemicHeart","ChronicCond_Osteoporasis","ChronicCond_rheumatoidarthritis","ChronicCond_stroke")
+beneficiarytest[,cols] = lapply(beneficiarytest[,cols],as.factor)
+```
+```{r}
+#Drop DOB and DOD columns
+beneficiarytest$DOB=NULL
+beneficiarytest$DOD=NULL
+```
+
+```{r}
+#Check the summary
+summary(beneficiarytest)
+```
+```{r}
+#Write to csv
+write.csv(beneficiarytest,file="feabeneficarytest.csv",row.names=FALSE)
+```
+```{r}
+#Check sum of na values in each of the dataframes
+sum(is.na(inpatienttest))
+sum(is.na(outpatienttest))
+sum(is.na(beneficiarytest))
+#81633
+#1968014
+#0
+```
+#---------------------------------------------------------------Merging files------------------------
+```{r}
+#Read all the csvs
+inpatient=read.csv("feainpatient.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+outpatient=read.csv("feaoutpatient.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+beneficiary=read.csv("feabeneficary.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+data=read.csv("Train-1542865627584.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+
+```
+
+```{r}
+#Check the summary
+summary(inpatienttest)
+#nas are present in AttendingPhysician,OperatingPhysician,OtherPhysician,ClmDiagnosisCode_2,ClmDiagnosisCode_3
+# ClmDiagnosisCode_4,ClmDiagnosisCode_5,ClmDiagnosisCode_6,ClmDiagnosisCode_7 ClmDiagnosisCode_8 ClmDiagnosisCode_9 ClmDiagnosisCode_10,ClmProcedureCode_1 ClmProcedureCode_2 ClmProcedureCode_3 ClmProcedureCode_4 ClmProcedureCode_5
+#ClmProcedureCode_6 complete column is empty
+#num:DeductibleAmtPaid
+```
+```{r}
+#Check the summary of outpatient
+summary(outpatienttest)
+```
+```{r}
+#Check the factor columns in inpatient and outpatient
+names(select_if(inpatienttest, is.factor))
+names(select_if(outpatienttest,is.factor))
+```
+
+```{r}
+#Check the summary
+summary(inpatienttest)
+```
+
+```{r}
+#Adding new column DiagnosisGroupCode in outpatient to match with inpatient column
+outpatienttest$DiagnosisGroupCode="NotApp"
+#Converting to factor
+outpatienttest$DiagnosisGroupCode=as.factor(outpatienttest$DiagnosisGroupCode)
+summary(outpatienttest$DiagnosisGroupCode)
+```
+```{r}
+#Apply union_all on outpatient and inpatient
+patientdatatest=union_all(outpatienttest,inpatienttest)
+```
+```{r}
+#Check the structure
+str(patientdatatest)
+```
+```{r}
+#Check the character columns
+names <- names(select_if(patientdatatest,is.character))
+names
+```
+
+```{r}
+#Convert character columns to factor
+patientdatatest[,names] <- lapply(patientdatatest[,names] , factor)
+str(patientdatatest)
+```
+
+
+
+
+```{r}
+#Check nas in ClmProcedureCode_1
+sum(is.na(patientdatatest$ClmProcedureCode_1))
+```
+```{r}
+#Select only few numeric attributes which have nas
+intcolumns <- names(select_if(patientdatatest,is.numeric))
+intcolumns=intcolumns[2:6]
+intcolumns
+```
+
+```{r}
+#User Defined Function to add "NotApp" in place of Na values
+ReplaceNaUdf = function(column){
+ ifelse(is.na(column),"NotApp",column)
+}
+```
+
+```{r}
+#Replace the nas for the intcolumns
+patientdatatest[,intcolumns] <- sapply(patientdatatest[,intcolumns] , function(x) ReplaceNaUdf(x))
+str(patientdatatest)
+
+```
+```{r}
+#Check character columns
+names <- names(select_if(patientdatatest,is.character))
+names
+```
+```{r}
+#Convert character to factor
+patientdatatest[,names] <- lapply(patientdatatest[,names] , factor)
+str(patientdatatest)
+```
+```{r}
+#Select factorcolumns
+factorcolumns <- names(select_if(patientdatatest,is.factor))
+factorcolumns=factorcolumns[4:22]
+factorcolumns= factorcolumns[-18]
+factorcolumns
+```
+```{r}
+#Check summary
+summary(patientdatatest) 
+#nas are present in 
+#factors:AttendingPhysician,OperatingPhysician   OtherPhysician   ClmDiagnosisCode_1 ClmDiagnosisCode_2 ClmDiagnosisCode_3 ClmDiagnosisCode_4 ClmDiagnosisCode_5 ClmDiagnosisCode_6 ClmDiagnosisCode_7 ClmDiagnosisCode_8 ClmDiagnosisCode_9 ClmDiagnosisCode_10
+
+#int:
+```
+```{r}
+#Function for replacing nas
+ReplaceNaFactorUdf = function(column){
+factor(ifelse(is.na(column), "NotApp", paste(column)))
+}
+```
+```{r}
+#Replace nas for factorcolumns with "NotApp"
+d=patientdatatest
+d[,factorcolumns] <- sapply(d[,factorcolumns] , function(x) ReplaceNaFactorUdf(x))
+str(d)
+```
+```{r}
+patientdatatest=d
+
+```
+
+```{r}
+#Check summary
+summary(patientdatatest)
+```
+
+```{r}
+
+# ClmProcedureCode_6 has all nas so filling with NotApp
+patientdatatest$ClmProcedureCode_6="NotApp"
+
+```
+```{r}
+#Check nas 
+sum(is.na(patientdatatest)) 
+```
+
+
+```{r}
+#intcolumns selection where nas are still present
+intcolumns <- names(select_if(patientdatatest,is.numeric))
+intcolumns[2]
+```
+```{r}
+# one numeric column DeductibleAmtPaid still has na's replace with median
+str(patientdatatest)
+```
+```{r}
+#Replace na with median value
+d1=patientdatatest
+patientdatatest$DeductibleAmtPaid[is.na(patientdatatest$DeductibleAmtPaid)] =median(patientdatatest$DeductibleAmtPaid, na.rm=TRUE)
+```
+```{r}
+#Check sum of na values
+sum(is.na(patientdatatest))
+```
+```{r}
+str(patientdatatest)
+```
+
+```{r}
+#Write to csv
+write.csv(patientdatatest,file="Imputed_Patienttest.csv",row.names=FALSE)
+```
+#-----------------------Merge Files---------------------------------------
+
+```{r}
+#Clear workingspace
+#rm(list=ls(all=TRUE))
+```
+```{r}
+#set working directory
+#setwd("C:/Users/Hai/Desktop/PHD/PhdData/Data")
+```
+
+```{r}
+#Load all the Libraries Required
+#library(caret)
+#library(DMwR)
+#library(dplyr)
+```
+```{r}
+#Load the saved csv data
+beneficiary=read.csv("feabeneficary.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+data=read.csv("Train-1542865627584.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+Imputed_PatientData=read.csv("Imputed_PatientData1.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+```
+```{r}
+Imputed_PatientDataTest=patientdatatest
+```
+
+```{r}
+#Check the summary
+summary(testdata)
+summary(Imputed_PatientDataTest)
+summary(beneficiarytest)
+```
+
+
+```{r}
+#Check the structure
+str(testdata)
+str(Imputed_PatientDataTest)
+str(beneficiarytest)
+```
+
+```{r}
+#Merge the ImputedPatientData with beneficiary 
+patientBenfeciaryDatatest=merge(Imputed_PatientDataTest,beneficiarytest)
+```
+
+```{r}
+#Check dimensions
+dim(patientBenfeciaryDatatest)
+#135392     51
+#Merge the patientBeneficiaryData and data(with target)
+mergedtest=merge(patientBenfeciaryDatatest,testdata)
+dim(mergedtest) #135392     51
+```
+
+```{r}
+#Write into csv
+write.csv(mergedtest,file="MergedFullTest.csv",row.names=FALSE)
+```
+
+```{r}
+#Write into csv
+write.csv(patientBenfeciaryDatatest,file="patientBenfeciaryDataTest.csv",row.names=FALSE)
+```
+
+```{r}
+#Read the merged data
+mergedtrain=read.csv("MergedFullData.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+```
+```{r}
+#Check the structure
+str(mergedtest)
+```
+
+```{r}
+#Cross check na values
+sum(is.na(mergedtest)) 
+```
+
+
+```{r}
+#Get the vector for numeric attributes to convert to factor
+numcolumns <- names(select_if(mergedtest,is.numeric))
+numcolumns=c("Gender","Race","State","County","ChronicCond_Alzheimer","ChronicCond_Heartfailure","ChronicCond_KidneyDisease","ChronicCond_Cancer","ChronicCond_ObstrPulmonary","ChronicCond_Depression","ChronicCond_Diabetes",     "ChronicCond_IschemicHeart","ChronicCond_Osteoporasis","ChronicCond_rheumatoidarthritis","ChronicCond_stroke")
+numcolumns
+```
+```{r}
+#Convert the numcolumns to factor
+mergedtest[,numcolumns] <- lapply(mergedtest[,numcolumns] , factor)
+str(mergedtest)
+```
+```{r}
+#Write to csv
+write.csv(mergedtest,file="FinalMergeDataTest.csv",row.names=FALSE)
+```
+
+
+
+#Read the FinalMergeData(Train) and FinalMergeDataTest for binning codes
+
+
+
+
+```{r}
+#Clear Workspace
+#rm(list=ls(all=TRUE))
+```
+```{r}
+#set working directory
+#setwd("C:/Users/Hai/Desktop/PHD/PhdData/Data")
+```
+
+```{r}
+#Load all the Libraries Required
+#library(caret)
+#library(DMwR)
+#library(dplyr)
+```
+```{r}
+#Importing data
+#Read FinalMergeData.csv---------------------------------------------------------------------------------------------
+mergetrain=read.csv("FinalMergeData.csv", header=TRUE, sep=",",na.strings=c("","NA"))
+mergedf=mergetrain
+#dimensions  558211     52
+dim(mergetrain)
+#check structure  PotentialFraud Provider
+str(mergetrain)   
+
+
+```
+```{r}
+#intcolumns type
+intcolumns <- names(select_if(mergetrain,is.numeric))
+intcolumns=intcolumns[5:21]
+intcolumns=intcolumns[-5]
+intcolumns=intcolumns[-5]
+intcolumns
+```
+```{r}
+#Convert int to factor
+mergetrain[,intcolumns] <- lapply(mergetrain[,intcolumns] , factor)
+str(mergetrain)
+```
+
+
+
+
+
+
+
+
+```{r}
+#factorcolumns type
+factorcolumns <- names(select_if(mergetrain,is.factor))
+
+factorcolumns=factorcolumns[7:24]
+factorcolumns
+```
+
+
+#Create new columns and binnning
+```{r}
+#Function for reducing the codes with only numeric characters within 3 digits
+TruncateCodes = function(column){
+sub("^(\\d{3}).*$", "\\1", column)
+}
+```
+```{r}
+#Replace nas for factorcolumns with "NotApp"
+d=mergetrain
+d[,factorcolumns] <- sapply(d[,factorcolumns] , function(x) TruncateCodes(x))
+str(d)
+```
+
+```{r}
+#Function for reducing the codes with only numeric characters within 3 digits
+ManipulateVECodes = function(column){
+column=gsub("V", "1000", column)
+column=gsub("E", "1000", column)
+column=as.numeric(column)
+}
+```
+```{r}
+BinCodes=function(column){
+ifelse(column <= 139, "infectious and parasitic", 
+ifelse(column <= 239, "neoplasms",
+ifelse(column <= 279, "endocrine, nutritional and metabolic diseases, and immunity disorders",
+ifelse(column <= 289, "diseases of the blood and blood-forming organs",
+ifelse(column <= 319, "mental disorders", 
+ifelse(column <= 389, "diseases of the nervous system and sense organs", 
+ifelse(column <= 459, "diseases of the circulatory system",
+ifelse(column <= 519, "diseases of the respiratory system",
+ifelse(column <= 579, "diseases of the digestive system", 
+ifelse(column <= 629, "diseases of the genitourinary system",
+ifelse(column <= 679, "complications of pregnancy, childbirth, and the puerperium", 
+ifelse(column<= 709, "skin and subcutaneous tissue", 
+ifelse(column <= 739, "musculoskeletal system and connective tissue",
+ifelse(column <= 759, "congenital anomalies", 
+ifelse(column <= 779, "certain conditions originating in the perinatal period", 
+ifelse(column <= 799, "symptoms, signs, and ill-defined conditions",
+ifelse(column <= 999, "injury and poisoning", 
+ifelse(is.na(column), "No App",'external causes of injury and supplemental classification'))))))))))))))))))
+}
+```
+
+```{r}
+#Replace nas for factorcolumns with "NotApp"
+dfnew=d
+dfnew[,factorcolumns] <- sapply(dfnew[,factorcolumns] , function(x) ManipulateVECodes(x))
+str(dfnew)
+
+
+
+
+```
+
+```{r}
+d$ClmDiagnosisCode_1
+```
+
+
+
+
+```{r}
+dfnew$diagcode1=BinCodes(dfnew$ClmDiagnosisCode_1)
+dfnew$diagcode2=BinCodes(dfnew$ClmDiagnosisCode_2)
+dfnew$diagcode3=BinCodes(dfnew$ClmDiagnosisCode_3)
+dfnew$diagcode4=BinCodes(dfnew$ClmDiagnosisCode_4)
+dfnew$diagcode5=BinCodes(dfnew$ClmDiagnosisCode_5)
+dfnew$diagcode6=BinCodes(dfnew$ClmDiagnosisCode_6)
+dfnew$admitdiagcode=BinCodes(dfnew$ClmAdmitDiagnosisCode)
+dfnew$diaggroupcode=BinCodes(dfnew$DiagnosisGroupCode)
+
+```
+```{r}
+sum(is.na(dfnew))
+```
+```{r}
+sum(is.na(dfnew))  # 10545013
+
+colSums(is.na(dfnew))
+
+
+Traindf = dfnew[, colMeans(is.na(dfnew)) <= .90] 
+dim(Traindf) #558211     42
+```
+
+
+```{r}
+str(Traindf)
+```
+```{r}
+Traindf$diagcode7=BinCodes(Traindf$ClmDiagnosisCode_7)
+```
+```{r}
+str(Traindf)
+```
+
+```{r}
+Traindf$ClmDiagnosisCode_1=NULL
+Traindf$ClmDiagnosisCode_2=NULL
+Traindf$ClmDiagnosisCode_3=NULL
+Traindf$ClmDiagnosisCode_4=NULL
+Traindf$ClmDiagnosisCode_5=NULL
+Traindf$ClmDiagnosisCode_6=NULL
+Traindf$ClmDiagnosisCode_7=NULL
+Traindf$ClmAdmitDiagnosisCode=NULL
+```
+```{r}
+#Write to csv
+write.csv(Traindf,file="TrainAfterBinning.csv",row.names=FALSE)
+```
+
+```{r}
+Traindf=read.csv("TrainAfterBinning.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+```
+```{r}
+str(Traindf)
+```
+```{r}
+#Check int columns
+names <- names(select_if(Traindf,is.numeric))
+names=names[5:21]
+names=names[-5]
+names=names[-5]
+names
+#
+```
+
+```{r}
+#Convert character to factor
+Traindf[,names] <- lapply(Traindf[,names] , factor)
+str(Traindf)
+```
+```{r}
+sum(Traindf$AttendingPhysician=="NotApp")
+```
+
+```{r}
+Traindf$IsAttPhysician <- ifelse(Traindf$AttendingPhysician!="NotApp", 1, 0)
+Traindf$IsOperPhysician<-ifelse(Traindf$OperatingPhysician!="NotApp", 1, 0)
+Traindf$IsOperPhysician<-ifelse(Traindf$OtherPhysician!="NotApp", 1, 0)
+
+
+```
+```{r}
+#Write to csv
+write.csv(Traindf,file="Traindffinal.csv",row.names=FALSE)
+
+```
+
+
+```{r}
+getmode <- function(v) {
+  levels(v)[which.max(table(v))]
+}
+```
+
+```{r}
+my_summary <- function(x, id, ...){
+  if (is.numeric(x)) {
+    return(tapply(x, id, mean))
+  }  
+  if (is.factor(x)) {
+    return(tapply(x, id, getmode))
+  }  
+}
+```
+```{r}
+providerdata= data.frame(lapply(Traindf, my_summary, id = Traindf$Provider))
+```
+
+```{r}
+#Write to csv
+write.csv(providerdata,file="Providertrainfinal.csv",row.names=FALSE)
+```
+
+#Performing the same on test data
+
+
+```{r}
+#Read the merged FinalMergeDataTest
+mergedtest=read.csv("FinalMergeDataTest.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+```
+```{r}
+
+str(mergedtest)
+```
+```{r}
+#intcolumns type
+intcolumns <- names(select_if(mergedtest,is.numeric))
+intcolumns=intcolumns[5:21]
+intcolumns=intcolumns[-5]
+intcolumns=intcolumns[-5]
+intcolumns
+```
+```{r}
+#Convert int to factor
+mergedtest[,intcolumns] <- lapply(mergedtest[,intcolumns] , factor)
+str(mergedtest)
+```
+```{r}
+str(mergedtest)
+```
+
+
+
+
+
+
+```{r}
+#factorcolumns type
+factorcolumns <- names(select_if(mergedtest,is.factor))
+
+factorcolumns=factorcolumns[7:24]
+factorcolumns
+```
+
+
+#Create new columns and binning
+```{r}
+#Function for reducing the codes with only numeric characters within 3 digits
+TruncateCodes = function(column){
+sub("^(\\d{3}).*$", "\\1", column)
+}
+```
+```{r}
+#Replace nas for factorcolumns with "NotApp"
+d=mergedtest
+d[,factorcolumns] <- sapply(d[,factorcolumns] , function(x) TruncateCodes(x))
+str(d)
+```
+
+
+
+
+```{r}
+#Function for reducing the codes with only numeric characters within 3 digits
+ManipulateVECodes = function(column){
+column=gsub("V", "1000", column)
+column=gsub("E", "1000", column)
+column=as.numeric(column)
+}
+```
+```{r}
+BinCodes=function(column){
+ifelse(column <= 139, "infectious and parasitic", 
+ifelse(column <= 239, "neoplasms",
+ifelse(column <= 279, "endocrine, nutritional and metabolic diseases, and immunity disorders",
+ifelse(column <= 289, "diseases of the blood and blood-forming organs",
+ifelse(column <= 319, "mental disorders", 
+ifelse(column <= 389, "diseases of the nervous system and sense organs", 
+ifelse(column <= 459, "diseases of the circulatory system",
+ifelse(column <= 519, "diseases of the respiratory system",
+ifelse(column <= 579, "diseases of the digestive system", 
+ifelse(column <= 629, "diseases of the genitourinary system",
+ifelse(column <= 679, "complications of pregnancy, childbirth, and the puerperium", 
+ifelse(column<= 709, "skin and subcutaneous tissue", 
+ifelse(column <= 739, "musculoskeletal system and connective tissue",
+ifelse(column <= 759, "congenital anomalies", 
+ifelse(column <= 779, "certain conditions originating in the perinatal period", 
+ifelse(column <= 799, "symptoms, signs, and ill-defined conditions",
+ifelse(column <= 999, "injury and poisoning", 
+ifelse(is.na(column), "No App",'external causes of injury and supplemental classification'))))))))))))))))))
+}
+```
+
+```{r}
+#Replace nas for factorcolumns with "NotApp"
+dfnewtest=d
+dfnewtest[,factorcolumns] <- sapply(dfnewtest[,factorcolumns] , function(x) ManipulateVECodes(x))
+str(dfnewtest)
+
+
+
+
+```
+
+
+
+
+
+
+```{r}
+dfnewtest$diagcode1=BinCodes(dfnewtest$ClmDiagnosisCode_1)
+dfnewtest$diagcode2=BinCodes(dfnewtest$ClmDiagnosisCode_2)
+dfnewtest$diagcode3=BinCodes(dfnewtest$ClmDiagnosisCode_3)
+dfnewtest$diagcode4=BinCodes(dfnewtest$ClmDiagnosisCode_4)
+dfnewtest$diagcode5=BinCodes(dfnewtest$ClmDiagnosisCode_5)
+dfnewtest$diagcode6=BinCodes(dfnewtest$ClmDiagnosisCode_6)
+dfnewtest$admitdiagcode=BinCodes(dfnewtest$ClmAdmitDiagnosisCode)
+dfnewtest$diaggroupcode=BinCodes(dfnewtest$DiagnosisGroupCode)
+
+```
+```{r}
+dim(dfnewtest) # 135392     59
+```
+```{r}
+sum(is.na(dfnewtest))  # 2652629
+
+colSums(is.na(dfnewtest))
+
+
+Testdf = dfnewtest[, colMeans(is.na(dfnewtest)) <= .90] 
+dim(Testdf) #135392     48
+```
+
+
+```{r}
+str(Testdf)
+```
+```{r}
+Testdf$diagcode7=BinCodes(Testdf$ClmDiagnosisCode_7)
+```
+```{r}
+str(Testdf)
+```
+
+```{r}
+Testdf$ClmDiagnosisCode_1=NULL
+Testdf$ClmDiagnosisCode_2=NULL
+Testdf$ClmDiagnosisCode_3=NULL
+Testdf$ClmDiagnosisCode_4=NULL
+Testdf$ClmDiagnosisCode_5=NULL
+Testdf$ClmDiagnosisCode_6=NULL
+Testdf$ClmDiagnosisCode_7=NULL
+Testdf$ClmAdmitDiagnosisCode=NULL
+```
+```{r}
+#Write to csv
+write.csv(Testdf,file="TestAfterBinning.csv",row.names=FALSE)
+```
+
+```{r}
+Testdf=read.csv("TestAfterBinning.csv",header=TRUE,sep=",",na.strings=c("","NA"))
+```
+```{r}
+str(Testdf)
+```
+```{r}
+#Check int columns
+names <- names(select_if(Testdf,is.numeric))
+names=names[5:21]
+names=names[-5]
+names=names[-5]
+names
+#
+```
+
+```{r}
+#Convert character to factor
+Testdf[,names] <- lapply(Testdf[,names] , factor)
+str(Testdf)
+```
+```{r}
+sum(Testdf$AttendingPhysician=="NotApp")
+```
+
+```{r}
+Testdf$IsAttPhysician <- ifelse(Testdf$AttendingPhysician!="NotApp", 1, 0)
+Testdf$IsOperPhysician<-ifelse(Testdf$OperatingPhysician!="NotApp", 1, 0)
+Testdf$IsOperPhysician<-ifelse(Testdf$OtherPhysician!="NotApp", 1, 0)
+
+
+```
+```{r}
+#Write to csv
+write.csv(Testdf,file="Testdffinal.csv",row.names=FALSE)
+
+```
+
+
+```{r}
+getmode <- function(v) {
+  levels(v)[which.max(table(v))]
+}
+```
+
+```{r}
+my_summary <- function(x, id, ...){
+  if (is.numeric(x)) {
+    return(tapply(x, id, mean))
+  }  
+  if (is.factor(x)) {
+    return(tapply(x, id, getmode))
+  }  
+}
+```
+```{r}
+providerdatatest= data.frame(lapply(Testdf, my_summary, id = Testdf$Provider))
+```
+```{r}
+providerdatatest$OperatingPhysician
+```
+
+```{r}
+#Write to csv
+write.csv(providerdatatest,file="Providertestfinal.csv",row.names=FALSE)
+```
+
+
+-----------------------
+#Model Building:
+Building models on the aggregated provider datasets
+Providertrainfinal.csv and Providertestfinal.csv
+
+```{r}
+#Clear Workspace
+#rm(list=ls(all=TRUE))
+```
+```{r}
+#set working directory
+setwd("C:/Users/Hai/Desktop/PHD/PhdData/Data")
+```
+
+```{r}
+#Load all the Libraries Required
+library(caret)
+library(DMwR)
+library(dplyr)
+```
+#Approach 1:Smote(900:100)
+```{r}
+#Read Providertrainfinal.csv---------------------------------------------------------------------------------------------
+trainprovider=read.csv("Providertrainfinal.csv", header=TRUE, sep=",",na.strings=c("","NA"))
+#dimensions  5410   44
+dim(trainprovider)
+#check structure  PotentialFraud Provider
+str(trainprovider)   
+#check summary
+summary(trainprovider)
+
+#check na values
+sum(is.na(trainprovider))
+#0
+```
+```{r}
+#Read Providertestfinal.csv---------------------------------------------------------------------------------------------
+testprovider=read.csv("Providertestfinal.csv", header=TRUE, sep=",",na.strings=c("","NA"))
+#dimensions  1353   43
+dim(testprovider)
+#check structure  PotentialFraud Provider
+str(testprovider)   
+#check summary
+summary(testprovider)
+
+#check na values
+sum(is.na(testprovider))
+#0
+```
+
+
+
+```{r}
+#Get the vector for numeric attributes to convert to factor
+numcolumns <- names(select_if(trainprovider,is.numeric))
+numcolumns=c("Gender","Race","State","County","ChronicCond_Alzheimer","ChronicCond_Heartfailure","ChronicCond_KidneyDisease","ChronicCond_Cancer","ChronicCond_ObstrPulmonary","ChronicCond_Depression","ChronicCond_Diabetes",     "ChronicCond_IschemicHeart","ChronicCond_Osteoporasis","ChronicCond_rheumatoidarthritis","ChronicCond_stroke")
+numcolumns
+```
+```{r}
+#Convert the numcolumns to factor
+trainprovider[,numcolumns] <- lapply(trainprovider[,numcolumns] , factor)
+str(trainprovider)
+```
+```{r}
+#Get the vector for numeric attributes to convert to factor
+numcolumnstest <- names(select_if(testprovider,is.numeric))
+numcolumnstest=c("Gender","Race","State","County","ChronicCond_Alzheimer","ChronicCond_Heartfailure","ChronicCond_KidneyDisease","ChronicCond_Cancer","ChronicCond_ObstrPulmonary","ChronicCond_Depression","ChronicCond_Diabetes",     "ChronicCond_IschemicHeart","ChronicCond_Osteoporasis","ChronicCond_rheumatoidarthritis","ChronicCond_stroke")
+numcolumnstest
+```
+```{r}
+#Convert the numcolumns to factor
+testprovider[,numcolumnstest] <- lapply(testprovider[,numcolumnstest] , factor)
+str(testprovider)
+```
+```{r}
+summary(trainprovider$PotentialFraud)
+```
+
+```{r}
+train_provider=trainprovider
+## Remove columns which does not add any information
+train_provider$BeneID<-NULL
+train_provider$ClaimID=NULL
+train_provider$AttendingPhysician=NULL
+train_provider$OperatingPhysician=NULL
+train_provider$OtherPhysician=NULL
+```
+```{r}
+str(train_provider)
+```
+```{r}
+test_provider=testprovider
+## Remove columns which does not add any information
+test_provider$BeneID<-NULL
+test_provider$ClaimID=NULL
+test_provider$AttendingPhysician=NULL
+test_provider$OperatingPhysician=NULL
+test_provider$OtherPhysician=NULL
+```
+```{r}
+str(test_provider)
+```
+```{r}
+# Do Train-Test Split
+
+set.seed(125)
+rows=createDataPartition(train_provider$PotentialFraud,p = 0.7,list = FALSE)
+train=train_provider[rows,]
+val=train_provider[-rows,]
+
+```
+```{r}
+table(train_provider$PotentialFraud)
+prop.table(table(train_provider$PotentialFraud))
+```
+```{r}
+#Let us handle through Synthetic Minority OverSampling Technique
+# Divide data in to train and validation then ****apply SMOTE on train****
+
+
+trainsmote<-SMOTE(PotentialFraud~.,data=train,perc.over = 900,perc.under = 100 )
+table(trainsmote$PotentialFraud)
+prop.table(table(trainsmote$PotentialFraud))
+#        No       Yes 
+# 0.4736842 0.5263158 
+```
+
+```{r}
+#Standardize all the real valued variables in the dataset using only the train data
+
+names(select_if(trainsmote, is.numeric))
+names(select_if(trainsmote, is.factor))
+
+
+
+```
+
+```{r}
+std_method <- preProcess(trainsmote[, names(select_if(trainsmote, is.numeric))], method = c("center", "scale"))
+
+train_sdata <- predict(std_method, trainsmote)
+```
+```{r}
+val_sdata <- predict(std_method, val)
+```
+```{r}
+test_sdata<- predict(std_method, test_provider)
+```
+
+```{r}
+#standardized data
+str(train_sdata) #6745 obs. of  39
+str(test_sdata)#1353 obs. of  38
+str(val_sdata)#1622 obs. of  39
+
+```
+Removing County,Provider and State columns
+Equating levels of digcode1 to 7 and admitdiagcode with that of train
+```{r}
+train_sdata$County=NULL
+test_sdata$County=NULL
+val_sdata$County=NULL
+
+```
+```{r}
+train_sdata$Provider=NULL
+test_sdata$Provider=NULL
+val_sdata$Provider=NULL
+```
+```{r}
+train_sdata$State=NULL
+test_sdata$State=NULL
+val_sdata$State=NULL
+```
+```{r}
+levels(test_sdata$diagcode1) = levels(train_sdata$diagcode1)
+levels(val_sdata$diagcode1)=levels(train_sdata$diagcode1)
+levels(test_sdata$diagcode2) = levels(train_sdata$diagcode2)
+levels(val_sdata$diagcode2)=levels(train_sdata$diagcode2)
+levels(test_sdata$diagcode3) = levels(train_sdata$diagcode3)
+levels(val_sdata$diagcode3)=levels(train_sdata$diagcode3)
+levels(test_sdata$diagcode4) = levels(train_sdata$diagcode4)
+levels(val_sdata$diagcode4)=levels(train_sdata$diagcode4)
+levels(test_sdata$diagcode5) = levels(train_sdata$diagcode5)
+levels(val_sdata$diagcode5)=levels(train_sdata$diagcode5)
+levels(test_sdata$diagcode6) = levels(train_sdata$diagcode6)
+levels(val_sdata$diagcode6)=levels(train_sdata$diagcode6)
+levels(test_sdata$diagcode7) = levels(train_sdata$diagcode7)
+levels(val_sdata$diagcode7)=levels(train_sdata$diagcode7)
+levels(test_sdata$admitdiagcode) = levels(train_sdata$admitdiagcode)
+levels(val_sdata$admitdiagcode)=levels(train_sdata$admitdiagcode)
+
+```
+
+```{r}
+str(train_sdata)
+```
+```{r}
+str(test_sdata)
+```
+```{r}
+str(val_sdata)
+```
+
+#Modelling:
+Decision Trees
+
+```{r}
+library(rpart)
+
+# Build on smoted data
+system.time(DT_rpart_class<-rpart(PotentialFraud~.,data=train_sdata,method="class"))
+DT_rpart_class
+```
+
+```{r}
+#Predict "Revenue" for train and test datasets
+pred_Train = predict(DT_rpart_class,newdata=train_sdata, type="class")
+pred_Test = predict(DT_rpart_class, newdata=val_sdata, type="class")
+```
+```{r}
+#Error Metrics on train and test
+confusionMatrix(train_sdata$PotentialFraud,pred_Train)
+confusionMatrix(val_sdata$PotentialFraud,pred_Test)
+```
+```{r}
+# Parameter tuning - Choosing Best CP
+#try with 0.1,0.01,0.001...and so on
+#check xerror dec and then inc take the previous cp value and build the tree
+system.time(DT_rpart_class1<-rpart(PotentialFraud~.,data=train_sdata,method="class",control = rpart.control(cp=0.00001)))
+printcp(DT_rpart_class1)
+```
+```{r}
+#optimum cp=4.6948e-04
+
+# observe that xerror/rel error are decresing as cp reduces.
+# See at one cp xerror/rel error increses . choose the cp where you got minumum  xerror/relerror 
+system.time(DT_rpart_class1<-rpart(PotentialFraud~.,data=train_sdata,method="class",control = rpart.control(cp= 4.6948e-04)))
+printcp(DT_rpart_class1)
+plot(DT_rpart_class1)
+text(DT_rpart_class1)
+```
+
+```{r}
+#Predict  for train and test datasets
+pred_Train1 = predict(DT_rpart_class1,newdata=train_sdata, type="class")
+pred_Test1 = predict(DT_rpart_class1, newdata=val_sdata, type="class")
+```
+```{r}
+#Error Metrics on train and test
+confusionMatrix(train_sdata$PotentialFraud,pred_Train1)
+confusionMatrix(val_sdata$PotentialFraud,pred_Test1)
+```
+```{r}
+library(MLmetrics)
+F1_Score(y_pred = pred_Train1, y_true = train_sdata$PotentialFraud, positive = "Yes") #0.964487
+F1_Score(y_pred = pred_Test1, y_true = val_sdata$PotentialFraud, positive = "Yes") # 0.4533333
+```
+
+```{r}
+# Getting the Predictions for the test data
+pred_Testdata1 = predict(DT_rpart_class1,newdata=test_sdata, type="class")
+
+
+```
+```{r}
+final = data.frame(Provider = testprovider$Provider,PotentialFraud = pred_Testdata1)
+head(final,3)
+
+
+
+```
+```{r}
+write.csv(final, "predictionrpart.csv", row.names = FALSE)
+```
+
+#Model 2:Xgb
+
+```{r}
+#using one hot encoding 
+
+#using one hot encoding 
+labels <- train_sdata$PotentialFraud
+class(labels)
+
+```
+```{r}
+names(train_sdata)
+names(train_sdata[-26])
+```
+
+```{r}
+
+ts_label <- val_sdata$PotentialFraud
+names(train_sdata[26])
+```
+
+
+```{r}
+new_tr <- model.matrix(~.+0,data = train_sdata[,-26], with = F) 
+new_ts <- model.matrix(~.+0,data = val_sdata[,-26], with = F)
+```
+
+```{r}
+#convert factor to numeric 
+labels <- as.numeric(labels)-1
+ts_label <- as.numeric(ts_label)-1
+```
+
+```{r}
+library(xgboost)
+#preparing matrix 
+dtrain <- xgb.DMatrix(data = new_tr,label = labels )
+dtest <- xgb.DMatrix(data = new_ts,label=ts_label)
+
+```
+
+```{r}
+numberOfClasses <- length(unique(train_sdata$PotentialFraud))
+numberOfClasses
+```
+
+```{r}
+#default parameters
+
+ params <- list(booster = "gbtree", objective = "binary:logistic", eta=0.3, gamma=0, max_depth=6, min_child_weight=1, subsample=1, colsample_bytree=1) 
+```
+
+```{r}
+system.time(xgbcv <- xgb.cv( params = params, data = dtrain, nrounds = 100, nfold = 5, showsd = T, stratified = T, print.every.n = 10, early.stop.round = 20, maximize = F))
+```
+
+```{r}
+f1score_eval <- function(preds, dtrain) {
+  labels <- getinfo(dtrain, "label")
+
+  e_TP <- sum( (labels==1) & (preds >= 0.5) )
+  e_FP <- sum( (labels==0) & (preds >= 0.5) )
+  e_FN <- sum( (labels==1) & (preds < 0.5) )
+  e_TN <- sum( (labels==0) & (preds < 0.5) )
+
+  e_precision <- e_TP / (e_TP+e_FP)
+  e_recall <- e_TP / (e_TP+e_FN)
+
+  e_f1 <- 2*(e_precision*e_recall)/(e_precision+e_recall)
+
+  return(list(metric = "f1-score", value = e_f1))
+}
+```
+
+
+```{r}
+#first default - model training
+#changing nround value based on val-erro least error
+system.time(xgb1 <- xgb.train (params = params, data = dtrain, nrounds = 65, watchlist = list(val=dtest,train=dtrain), print.every.n = 10, early.stop.round = 10, maximize = F , eval_metric ='error'))
+```
+```{r}
+#model prediction
+xgbpred <- predict (xgb1,dtest)
+```
+```{r}
+xgbtrainpred<-predict(xgb1,dtrain)
+```
+
+```{r}
+f1score_eval(xgbtrainpred,dtrain) #0.9998592
+```
+```{r}
+xgbvalpred<-predict(xgb1,dtest)
+```
+```{r}
+f1score_eval(xgbvalpred,dtest) #0.509915
+```
+
+```{r}
+#view variable importance plot
+  mat <- xgb.importance (feature_names = colnames(new_tr),model = xgb1)
+  par("mar")
+  par(mar=c(1,1,1,1))
+  xgb.plot.importance (importance_matrix = mat[1:20])
+```
+```{r}
+test <- chisq.test(train_sdata$DaysAdmitted,labels)
+print(test)
+```
+
+
+```{r}
+names(train_sdata)
+names(test_sdata)
+```
+
+
+```{r}
+#model prediction on the Test Data
+  new_test <- model.matrix(~.+0,data = test_sdata, with = F)
+  dtestData <- xgb.DMatrix(data = new_test)
+  final1 <- predict (xgb1,dtestData)
+```
+```{r}
+#No  Yes
+predicted.classes <- ifelse(final1 > 0.5, "Yes", "No")
+```
+
+
+
+
+```{r}
+finalxg = data.frame(Provider = testprovider$Provider,PotentialFraud = predicted.classes)
+head(finalxg,3)
+  
+ 
+```
+```{r}
+ write.csv(finalxg, "predictionsxgboost.csv", row.names = FALSE)
+```
+```{r}
+library(randomForest)
+```
+```{r}
+system.time(RandomForest_Model <- randomForest(PotentialFraud ~ . , train_sdata,ntree = 50,mtry = 5))
+#OOB estimate of  error rate: 3.75%
+```
+
+```{r}
+ # We can also look at variable importance from the built model using the importance() function and visualise it using the varImpPlot() funcion
+  varImpPlot(RandomForest_Model)
+```
+
+```{r}
+# Predict on the train data
+  preds_train_rf <- predict(RandomForest_Model,train_sdata)
+  confusionMatrix(preds_train_rf, train_sdata$PotentialFraud)
+```
+
+```{r}
+# Store predictions from the model
+  preds_val_rf <- predict(RandomForest_Model, val_sdata)
+  confusionMatrix(preds_val_rf, val_sdata$PotentialFraud)
+```
+```{r}
+F1_Score(y_pred = preds_train_rf, y_true = train_sdata$PotentialFraud, positive = "Yes") #0.9997183
+F1_Score(y_pred = preds_val_rf, y_true = val_sdata$PotentialFraud, positive = "Yes")  #0.5189189
+```
+```{r}
+  preds_test_rf <- predict(RandomForest_Model,test_sdata)
+```
+
+```{r}
+#Try with 100(OOB estimate of  error rate: 3.83%),200(OOB estimate of  error rate: 3.57%),300( OOB estimate of  error rate: 3.48%),400 trees( OOB estimate of  error rate: 3.62%)
+#mtry(5,6 --sqrt(36))
+system.time(RandomForest_Model1 <- randomForest(PotentialFraud ~ . , train_sdata,ntree = 300,mtry = 5))
+RandomForest_Model1
+```
+
+```{r}
+ # We can also look at variable importance from the built model using the importance() function and visualise it using the varImpPlot() funcion
+  varImpPlot(RandomForest_Model1)
+```
+
+```{r}
+# Predict on the train data
+  preds_train_rf1 <- predict(RandomForest_Model1,train_sdata)
+  confusionMatrix(preds_train_rf1, train_sdata$PotentialFraud)
+```
+
+```{r}
+# Store predictions from the model
+  preds_val_rf1 <- predict(RandomForest_Model1, val_sdata)
+  confusionMatrix(preds_val_rf1, val_sdata$PotentialFraud)
+```
+```{r}
+F1_Score(y_pred = preds_train_rf1, y_true = train_sdata$PotentialFraud, positive = "Yes")#1
+F1_Score(y_pred = preds_val_rf1, y_true = val_sdata$PotentialFraud, positive = "Yes")  #0.5429363
+```
+```{r}
+  preds_test_rf <- predict(RandomForest_Model1,test_sdata)
+```
+```{r}
+finalrf = data.frame(Provider = testprovider$Provider,PotentialFraud = preds_test_rf)
+head(finalrf,3)
+  
+ 
+```
+```{r}
+write.csv(finalrf, "predictionsrf.csv", row.names = FALSE)
+```
+  
+```{r}
+#Try with 100(OOB estimate of  error rate: 3.83%),200(OOB estimate of  error rate: 3.57%),300( OOB estimate of  error rate: 3.48%),400 trees( OOB estimate of  error rate: 3.62%)
+system.time(RandomForest_Model2 <- randomForest(PotentialFraud ~ . , train_sdata,ntree = 300,mtry = 6))
+RandomForest_Model2
+```
+  
+  
+```{r}
+importance(RandomForest_Model1)
+```
+  
+```{r}
+#Applying Rf to top20 features only
+system.time(model_rf<-randomForest(PotentialFraud ~ InscClaimAmtReimbursed+DeductibleAmtPaid+DaysAdmitted+RenalDiseaseIndicator+ChronicCond_Diabetes+IPAnnualReimbursementAmt+IPAnnualDeductibleAmt+OPAnnualReimbursementAmt+BeneAge+diagcode3+diagcode4+diagcode5+diagcode6+diagcode7+IsAttPhysician+IsOperPhysician+NoOfMonths_PartACov+NoOfMonths_PartBCov,data = train_sdata,ntree = 300, mtry = 3))
+```
+```{r}
+model_rf
+```
+
+
+
+
+
+```{r}
+ # We can also look at variable importance from the built model using the importance() function and visualise it using the varImpPlot() funcion
+  varImpPlot(model_rf)
+```
+
+```{r}
+# Predict on the train data
+  preds_train_rf2 <- predict(model_rf,train_sdata)
+  confusionMatrix(preds_train_rf2, train_sdata$PotentialFraud)
+```
+
+```{r}
+# Store predictions from the model
+  preds_val_rf2 <- predict(model_rf, val_sdata)
+  confusionMatrix(preds_val_rf2, val_sdata$PotentialFraud)
+```
+```{r}
+F1_Score(y_pred = preds_train_rf2, y_true = train_sdata$PotentialFraud, positive = "Yes")#1
+F1_Score(y_pred = preds_val_rf2, y_true = val_sdata$PotentialFraud, positive = "Yes") #0.5333333
+```
+```{r}
+  preds_test_rf2 <- predict(model_rf,test_sdata)
+```
+```{r}
+finalrf2 = data.frame(Provider = testprovider$Provider,PotentialFraud = preds_test_rf2)
+head(finalrf2,3)
+  
+ 
+```
+```{r}
+write.csv(finalrf2, "predictionsrfvarimp.csv", row.names = FALSE)
+```
+
+#Xgb GridSearch
+```{r}
+searchGridSubCol <- expand.grid(subsample = c(0.5, 0.6), 
+                                colsample_bytree = c(0.5, 0.6),
+                                max_depth = c(5,6),
+                                min_child = seq(1), 
+                                eta = c(0.1,0.3)
+)
+
+
+ntrees <- 100
+
+```
+
+```{r}
+system.time(
+ErrorsHyperparameters <- apply(searchGridSubCol, 1, function(parameterList){
+  
+  #Extract Parameters to test
+  currentSubsampleRate <- parameterList[["subsample"]]
+  currentColsampleRate <- parameterList[["colsample_bytree"]]
+  currentDepth <- parameterList[["max_depth"]]
+  currentEta <- parameterList[["eta"]]
+  currentMinChild <- parameterList[["min_child"]]
+  xgboostModelCV <- xgb.cv(data =  dtrain, nrounds = ntrees, nfold = 5, showsd = TRUE, 
+                       metrics = "error", verbose = TRUE, "eval_metric" = "error","objective" = "binary:logistic", "max.depth" = currentDepth, "eta" = currentEta,                               
+                     "subsample" = currentSubsampleRate, "colsample_bytree" = currentColsampleRate
+                      , print_every_n = 10, "min_child_weight" = currentMinChild, booster = "gbtree",
+                     early_stopping_rounds = 10)
+  
+  xvalidationScores <- as.data.frame(xgboostModelCV$evaluation_log)
+  trainerror <- min(xvalidationScores$train_error_mean, 1)
+  testerror <- min(xvalidationScores$test_error_mean,1)
+  output <- return(c(trainerror,testerror,currentSubsampleRate, currentColsampleRate, currentDepth, currentEta, currentMinChild))}))
+
+```
+```{r}
+output <- as.data.frame(t(ErrorsHyperparameters))
+varnames <- c("TrainError", "TestError", "SubSampRate", "ColSampRate", "Depth", "eta", "currentMinChild")
+names(output) <- varnames
+head(output)
+
+```
+```{r}
+print(output)
+#0.0009636 0.0370644 0.6 0.6 5 0.3 1
+```
+
+
+```{r}
+#default parameters
+
+ params1 <- list(booster = "gbtree", objective = "binary:logistic", eta=0.3, gamma=0, max_depth=6, min_child_weight=1, subsample=0.6, colsample_bytree=0.6) 
+```
+
+```{r}
+gb2 <- xgb.train (params = params1, data = dtrain, nrounds = 87, watchlist = list(val=dtest,train=dtrain), print.every.n = 10, early.stop.round = 10, maximize = F , eval_metric = "error")
+```
+```{r}
+#model prediction
+xgbpred2 <- predict (gb2,dtest)
+```
+```{r}
+#view variable importance plot
+  mat <- xgb.importance (feature_names = colnames(new_tr),model = gb2)
+  par("mar")
+  par(mar=c(1,1,1,1))
+  xgb.plot.importance (importance_matrix = mat[1:20])
+```
+
+```{r}
+#model prediction on the Test Data
+  new_test <- model.matrix(~.+0,data = test_sdata, with = F)
+  dtestData <- xgb.DMatrix(data = new_test)
+  final4 <- predict (gb2,dtestData)
+```
+```{r}
+#No  Yes
+predicted.classes1 <- ifelse(final4 > 0.5, "Yes", "No")
+```
+```{r}
+xgbgridtrainpred <- predict (gb2,dtrain)
+xgbgridpred <- predict (gb2,dtest)
+```
+
+
+```{r}
+predicted.val1<- ifelse(xgbgridpred > 0.5, "Yes", "No")
+predicted.train1<- ifelse(xgbgridtrainpred > 0.5, "Yes", "No")
+```
+```{r}
+library(MLmetrics)
+F1_Score(y_pred = predicted.train1, y_true = train_sdata$PotentialFraud, positive = "Yes") #0.9998592
+F1_Score(y_pred = predicted.val1, y_true = val_sdata$PotentialFraud, positive = "Yes")#0.5287356
+```
+
+
+```{r}
+finalxg1 = data.frame(Provider = testprovider$Provider,PotentialFraud = predicted.classes1)
+head(finalxg1,3)
+  
+ 
+```
+
+
+```{r}
+ write.csv(finalxg1, "predictionsxggrid.csv", row.names = FALSE)
+```
+
+```{r}
+write.csv(train_sdata, "trainstd.csv", row.names = FALSE)
+write.csv(test_sdata, "teststd.csv", row.names = FALSE)
+write.csv(val_sdata, "valstd.csv", row.names = FALSE)
+```
+
+```{r}
+################ Building a Naive Bayes Model ################
+library(e1071)
+model = naiveBayes(PotentialFraud ~ ., data = train_sdata)
+model
+
+
+```
+
+
+```{r}
+predtrainnb = predict(model, train_sdata)
+table(predtrainnb, train_sdata$PotentialFraud)
+
+library(MLmetrics)
+F1_Score(train_sdata$PotentialFraud, predtrainnb, positive = 'Yes')
+#0.8392659
+predvalnb = predict(model,val_sdata)
+table(predvalnb, val_sdata$PotentialFraud)
+F1_Score(val_sdata$PotentialFraud, predvalnb, positive = 'Yes')
+# 0.3157895
+```
+```{r}
+predtestnb = predict(model, test_sdata)
+```
+
+```{r}
+finalnb = data.frame(Provider = testprovider$Provider,PotentialFraud = predtestnb)
+head(finalnb,3)
+  
+ 
+```
+
+
+```{r}
+ write.csv(finalnb, "predictionsnb.csv", row.names = FALSE)
+```
+
+
+
+------------------------
+Approach2:
+Applying nearzero variance and smote 600:120
+
+```{r}
+#Clear Workspace
+#rm(list=ls(all=TRUE))
+```
+```{r}
+#set working directory
+#setwd("C:/Users/Hai/Desktop/PHD/PhdData/Data")
+```
+
+```{r}
+#Load all the Libraries Required
+library(caret)
+library(DMwR)
+library(dplyr)
+```
+
+```{r}
+#Read Providertrainfinal.csv---------------------------------------------------------------------------------------------
+trainprovider=read.csv("Providertrainfinal.csv", header=TRUE, sep=",",na.strings=c("","NA"))
+#dimensions 5410   44 
+dim(trainprovider)
+#check structure  PotentialFraud Provider
+str(trainprovider)   
+#check summary
+summary(trainprovider)
+
+#check na values
+sum(is.na(trainprovider))
+#0
+```
+```{r}
+#Read Providertestfinal.csv---------------------------------------------------------------------------------------------
+testprovider=read.csv("Providertestfinal.csv", header=TRUE, sep=",",na.strings=c("","NA"))
+#dimensions  1353   43
+dim(testprovider)
+#check structure  PotentialFraud Provider
+str(testprovider)   
+#check summary
+summary(testprovider)
+
+#check na values
+sum(is.na(testprovider))
+#0
+```
+```{r}
+#remove variables which donot add any information using nerozerovar
+x=nearZeroVar(trainprovider,names=TRUE)
+# reduced to 36 variables
+train_data=trainprovider[,setdiff(names(trainprovider),x)]
+str(train_data)
+summary(train_data)
+
+
+```
+
+```{r}
+test_data=testprovider[,setdiff(names(testprovider),x)]
+str(test_data)
+summary(test_data)
+#1353   35
+dim(test_data)
+```
+
+
+```{r}
+#Get the vector for numeric attributes to convert to factor
+numcolumns <- names(select_if(train_data,is.numeric))
+numcolumns=c("Gender","State","County","ChronicCond_Alzheimer","ChronicCond_Heartfailure","ChronicCond_KidneyDisease","ChronicCond_ObstrPulmonary","ChronicCond_Depression","ChronicCond_Diabetes",   "ChronicCond_Osteoporasis","ChronicCond_rheumatoidarthritis")
+numcolumns
+```
+
+
+```{r}
+#Convert the numcolumns to factor
+train_data[,numcolumns] <- lapply(train_data[,numcolumns] , factor)
+str(train_data)
+```
+```{r}
+#Get the vector for numeric attributes to convert to factor
+numcolumnstest <- names(select_if(test_data,is.numeric))
+numcolumnstest=c("Gender","State","County","ChronicCond_Alzheimer","ChronicCond_Heartfailure","ChronicCond_KidneyDisease","ChronicCond_ObstrPulmonary","ChronicCond_Depression","ChronicCond_Diabetes",   "ChronicCond_Osteoporasis","ChronicCond_rheumatoidarthritis")
+numcolumnstest
+```
+```{r}
+#Convert the numcolumns to factor
+test_data[,numcolumnstest] <- lapply(test_data[,numcolumnstest] , factor)
+str(test_data)
+```
+```{r}
+summary(train_data$PotentialFraud)
+```
+
+```{r}
+train_provider=train_data
+## Remove columns which does not add any information
+train_provider$BeneID<-NULL
+train_provider$ClaimID=NULL
+train_provider$AttendingPhysician=NULL
+train_provider$OperatingPhysician=NULL
+train_provider$OtherPhysician=NULL
+```
+```{r}
+str(train_provider)#5410 obs. of  33 
+```
+```{r}
+test_provider=test_data
+## Remove columns which does not add any information
+test_provider$BeneID<-NULL
+test_provider$ClaimID=NULL
+test_provider$AttendingPhysician=NULL
+test_provider$OperatingPhysician=NULL
+test_provider$OtherPhysician=NULL
+```
+```{r}
+str(test_provider) #1353 obs. of  32
+```
+```{r}
+# Do Train-Test Split
+
+set.seed(12345)
+rows=createDataPartition(train_provider$PotentialFraud,p = 0.7,list = FALSE)
+train=train_provider[rows,]
+val=train_provider[-rows,]
+
+```
+```{r}
+table(train_provider$PotentialFraud)
+prop.table(table(train_provider$PotentialFraud))
+#   No       Yes 
+# 0.9064695 0.0935305 
+```
+```{r}
+#Let us handle through Synthetic Minority OverSampling Technique
+# Divide data in to train and validation then ****apply SMOTE on train****
+
+
+trainsmote<-SMOTE(PotentialFraud~.,data=train,perc.over = 600,perc.under=120)
+table(trainsmote$PotentialFraud)
+prop.table(table(trainsmote$PotentialFraud))
+#   No       Yes 
+# 0.5070423 0.4929577 
+ 
+```
+
+```{r}
+#Standardize all the real valued variables in the dataset using only the train data
+
+names(select_if(trainsmote, is.numeric))
+names(select_if(trainsmote, is.factor))
+
+
+
+```
+
+```{r}
+std_method <- preProcess(trainsmote[, names(select_if(trainsmote, is.numeric))], method = c("center", "scale"))
+
+train_sdata <- predict(std_method, trainsmote)
+```
+```{r}
+val_sdata <- predict(std_method, val)
+```
+```{r}
+test_sdata<- predict(std_method, test_provider)
+```
+
+```{r}
+#standardized data
+str(train_sdata) #5041 obs. of  33
+str(test_sdata)#  1622 obs. of  33
+str(val_sdata)
+
+```
+
+```{r}
+train_sdata$County=NULL
+test_sdata$County=NULL
+val_sdata$County=NULL
+
+```
+```{r}
+train_sdata$Provider=NULL
+test_sdata$Provider=NULL
+val_sdata$Provider=NULL
+```
+```{r}
+train_sdata$State=NULL
+test_sdata$State=NULL
+val_sdata$State=NULL
+```
+```{r}
+levels(test_sdata$diagcode1) = levels(train_sdata$diagcode1)
+levels(val_sdata$diagcode1)=levels(train_sdata$diagcode1)
+levels(test_sdata$diagcode2) = levels(train_sdata$diagcode2)
+levels(val_sdata$diagcode2)=levels(train_sdata$diagcode2)
+levels(test_sdata$diagcode3) = levels(train_sdata$diagcode3)
+levels(val_sdata$diagcode3)=levels(train_sdata$diagcode3)
+levels(test_sdata$diagcode4) = levels(train_sdata$diagcode4)
+levels(val_sdata$diagcode4)=levels(train_sdata$diagcode4)
+levels(test_sdata$diagcode5) = levels(train_sdata$diagcode5)
+levels(val_sdata$diagcode5)=levels(train_sdata$diagcode5)
+levels(test_sdata$diagcode6) = levels(train_sdata$diagcode6)
+levels(val_sdata$diagcode6)=levels(train_sdata$diagcode6)
+levels(test_sdata$diagcode7) = levels(train_sdata$diagcode7)
+levels(val_sdata$diagcode7)=levels(train_sdata$diagcode7)
+levels(test_sdata$admitdiagcode) = levels(train_sdata$admitdiagcode)
+levels(val_sdata$admitdiagcode)=levels(train_sdata$admitdiagcode)
+
+```
+
+```{r}
+str(train_sdata) #5041 obs. of  30
+```
+```{r}
+str(test_sdata) #1353 obs. of  29
+```
+```{r}
+str(val_sdata)
+```
+
+#Modelling:
+Decision Trees
+
+```{r}
+library(rpart)
+
+# Build on smoted data
+system.time(DT_rpart_class<-rpart(PotentialFraud~.,data=train_sdata,method="class"))
+DT_rpart_class
+```
+
+```{r}
+#Predict  for train and validation datasets
+pred_Train = predict(DT_rpart_class,newdata=train_sdata, type="class")
+pred_Test = predict(DT_rpart_class, newdata=val_sdata, type="class")
+```
+```{r}
+#Error Metrics on train andvalidation
+confusionMatrix(train_sdata$PotentialFraud,pred_Train)
+confusionMatrix(val_sdata$PotentialFraud,pred_Test)
+```
+```{r}
+# Parameter tuning - Choosing Best CP
+#try with 0.1,0.01,0.001...and so on
+#check xerror dec and then inc take the previous cp value and build the tree
+system.time(DT_rpart_class1<-rpart(PotentialFraud~.,data=train_sdata,method="class",control = rpart.control(cp=0.000001)))
+printcp(DT_rpart_class1)
+```
+```{r}
+#optimum cp=0.0.00067069
+
+# observe that xerror/rel error are decresing as cp reduces.
+# See at one cp xerror/rel error increses . choose the cp where you got minumum  xerror/relerror 
+DT_rpart_class1<-rpart(PotentialFraud~.,data=train_sdata,method="class",control = rpart.control(cp= 0.00067069))
+printcp(DT_rpart_class1)
+plot(DT_rpart_class1)
+text(DT_rpart_class1)
+```
+
+```{r}
+#Predict  for train and test datasets
+pred_Train1 = predict(DT_rpart_class1,newdata=train_sdata, type="class")
+pred_Test1 = predict(DT_rpart_class1, newdata=val_sdata, type="class")
+```
+```{r}
+#Error Metrics on train and test
+confusionMatrix(train_sdata$PotentialFraud,pred_Train1)
+confusionMatrix(val_sdata$PotentialFraud,pred_Test1)
+```
+```{r}
+library(MLmetrics)
+F1_Score(y_pred = pred_Train1, y_true = train_sdata$PotentialFraud, positive = "Yes") #0.9384152
+F1_Score(y_pred = pred_Test1, y_true = val_sdata$PotentialFraud, positive = "Yes")# 0.4109015
+```
+
+```{r}
+# Getting the Predictions for the test data
+pred_Testdata1 = predict(DT_rpart_class1,newdata=test_sdata, type="class")
+
+
+```
+```{r}
+final = data.frame(Provider = testprovider$Provider,PotentialFraud = pred_Testdata1)
+head(final,3)
+
+
+
+```
+```{r}
+write.csv(final, "predictionrpart.csv", row.names = FALSE)
+```
+#Model 2:Xgb
+
+```{r}
+#using one hot encoding 
+
+#using one hot encoding 
+labels <- train_sdata$PotentialFraud
+class(labels)
+
+```
+```{r}
+names(train_sdata)
+names(train_sdata[-21])
+```
+
+```{r}
+
+ts_label <- val_sdata$PotentialFraud
+names(train_sdata[21])
+```
+
+
+```{r}
+new_tr <- model.matrix(~.+0,data = train_sdata[,-21], with = F) 
+new_ts <- model.matrix(~.+0,data = val_sdata[,-21], with = F)
+```
+
+```{r}
+#convert factor to numeric 
+labels <- as.numeric(labels)-1
+ts_label <- as.numeric(ts_label)-1
+```
+
+```{r}
+library(xgboost)
+#preparing matrix 
+dtrain <- xgb.DMatrix(data = new_tr,label = labels )
+dtest <- xgb.DMatrix(data = new_ts,label=ts_label)
+
+```
+
+```{r}
+numberOfClasses <- length(unique(train_sdata$PotentialFraud))
+numberOfClasses
+```
+
+```{r}
+#default parameters
+
+ params <- list(booster = "gbtree", objective = "binary:logistic", eta=0.3, gamma=0, max_depth=6, min_child_weight=1, subsample=1, colsample_bytree=1) 
+```
+
+```{r}
+system.time(xgbcv <- xgb.cv( params = params, data = dtrain, nrounds = 100, nfold = 5, showsd = T, stratified = T, print.every.n = 10, early.stop.round = 20, maximize = F))
+```
+```{r}
+xgbcv
+```
+```{r}
+xgbcv$evaluation_log
+```
+
+```{r}
+#first default - model training
+#changing nround value based on val-erro least error
+system.time(xgb1 <- xgb.train (params = params, data = dtrain, nrounds = 75, watchlist = list(val=dtest,train=dtrain), print.every.n = 10, early.stop.round = 10, maximize = F , eval_metric = "error"))
+```
+```{r}
+saveRDS(xgb1, "xgb1.rds")
+
+# xgb1 = readRDS("xgb1.rds")
+```
+```{r}
+#model prediction
+xgbpred <- predict (xgb1,dtest)
+```
+```{r}
+#model prediction
+xgbtrainpred <- predict (xgb1,dtrain)
+```
+```{r}
+f1score_eval <- function(preds, dtrain) {
+  labels <- getinfo(dtrain, "label")
+
+  e_TP <- sum( (labels==1) & (preds >= 0.5) )
+  e_FP <- sum( (labels==0) & (preds >= 0.5) )
+  e_FN <- sum( (labels==1) & (preds < 0.5) )
+  e_TN <- sum( (labels==0) & (preds < 0.5) )
+
+  e_precision <- e_TP / (e_TP+e_FP)
+  e_recall <- e_TP / (e_TP+e_FN)
+
+  e_f1 <- 2*(e_precision*e_recall)/(e_precision+e_recall)
+
+  return(list(metric = "f1-score", value = e_f1))
+}
+```
+```{r}
+f1score_eval(xgbtrainpred,dtrain) #0.9993965
+f1score_eval(xgbpred,dtest)#0.4691358
+```
+
+
+```{r}
+#view variable importance plot
+  mat <- xgb.importance (feature_names = colnames(new_tr),model = xgb1)
+  par("mar")
+  par(mar=c(1,1,1,1))
+  xgb.plot.importance (importance_matrix = mat[1:20])
+```
+```{r}
+test <- chisq.test(train_sdata$DaysAdmitted,labels)
+print(test)
+```
+
+
+```{r}
+names(train_sdata)
+names(test_sdata)
+```
+
+
+```{r}
+#model prediction on the Test Data
+  new_test <- model.matrix(~.+0,data = test_sdata, with = F)
+  dtestData <- xgb.DMatrix(data = new_test)
+  final1 <- predict (xgb1,dtestData)
+```
+```{r}
+#No  Yes
+predicted.classes <- ifelse(final1 > 0.5, "Yes", "No")
+```
+```{r}
+predicted.val<- ifelse(xgbpred > 0.5, "Yes", "No")
+predicted.train<- ifelse(xgbtrainpred > 0.5, "Yes", "No")
+```
+```{r}
+F1_Score(y_pred = predicted.train, y_true = train_sdata$PotentialFraud, positive = "Yes") #0.9993965
+F1_Score(y_pred = predicted.val, y_true = val_sdata$PotentialFraud, positive = "Yes")#0.4691358
+```
+
+
+```{r}
+finalxg = data.frame(Provider = testprovider$Provider,PotentialFraud = predicted.classes)
+head(finalxg,3)
+  
+ 
+```
+```{r}
+ write.csv(finalxg, "predictionsxgbnz.csv", row.names = FALSE)
+```
+```{r}
+library(randomForest)
+```
+```{r}
+system.time(RandomForest_Model <- randomForest(PotentialFraud ~ . , train_sdata,ntree = 50,mtry = 5))
+#OOB estimate of  error rate: 3.75%
+```
+
+```{r}
+ # We can also look at variable importance from the built model using the importance() function and visualise it using the varImpPlot() funcion
+  varImpPlot(RandomForest_Model)
+```
+
+```{r}
+# Predict on the train data
+  preds_train_rf <- predict(RandomForest_Model,train_sdata)
+  confusionMatrix(preds_train_rf, train_sdata$PotentialFraud)
+```
+
+```{r}
+# Store predictions from the model
+  preds_val_rf <- predict(RandomForest_Model, val_sdata)
+  confusionMatrix(preds_val_rf, val_sdata$PotentialFraud)
+```
+```{r}
+F1_Score(y_pred = preds_train_rf, y_true = train_sdata$PotentialFraud, positive = "Yes") #1
+F1_Score(y_pred = preds_val_rf, y_true = val_sdata$PotentialFraud, positive = "Yes") #0.4615385
+```
+```{r}
+  preds_test_rf <- predict(RandomForest_Model,test_sdata)
+```
+
+```{r}
+#Try with 100(OOB estimate of  error rate: 3.83%),200(OOB estimate of  error rate: 3.57%),300( OOB estimate of  error rate: 3.48%),400 trees( OOB estimate of  error rate: 3.62%)
+#mtry(5,6 --sqrt(36))
+system.time(RandomForest_Model1 <- randomForest(PotentialFraud ~ . , train_sdata,ntree = 300,mtry = 5))
+RandomForest_Model1
+```
+
+```{r}
+ # We can also look at variable importance from the built model using the importance() function and visualise it using the varImpPlot() funcion
+  varImpPlot(RandomForest_Model1)
+```
+
+```{r}
+# Predict on the train data
+  preds_train_rf1 <- predict(RandomForest_Model1,train_sdata)
+  confusionMatrix(preds_train_rf1, train_sdata$PotentialFraud)
+```
+
+```{r}
+# Store predictions from the model
+  preds_val_rf1 <- predict(RandomForest_Model1, val_sdata)
+  confusionMatrix(preds_val_rf1, val_sdata$PotentialFraud)
+```
+```{r}
+F1_Score(y_pred = preds_train_rf1, y_true = train_sdata$PotentialFraud, positive = "Yes")
+F1_Score(y_pred = preds_val_rf1, y_true = val_sdata$PotentialFraud, positive = "Yes") #0.4786325
+```
+```{r}
+  preds_test_rf <- predict(RandomForest_Model1,test_sdata)
+```
+```{r}
+finalrf = data.frame(Provider = testprovider$Provider,PotentialFraud = preds_test_rf)
+head(finalrf,3)
+  
+ 
+```
+```{r}
+write.csv(finalrf, "predictionsrf.csv", row.names = FALSE)
+```
+  
+```{r}
+#Try with 100(OOB estimate of  error rate: 3.83%),200(OOB estimate of  error rate: 3.57%),300( OOB estimate of  error rate: 3.48%),400 trees( OOB estimate of  error rate: 3.62%)
+system.time(RandomForest_Model2 <- randomForest(PotentialFraud ~ . , train_sdata,ntree = 300,mtry = 6))
+RandomForest_Model2
+```
+  
+  
+```{r}
+importance(RandomForest_Model1)
+```
+
+#Logistic Regression
+
+```{r}
+################ Logistic Regression ################
+system.time(log_reg <- glm(PotentialFraud~., data = train_sdata, family = binomial))
+summary(log_reg)
+prob_train <- predict(log_reg, type="response")
+# By default if no dataset is mentioned, training data is used
+prob_val <- predict(log_reg, val_sdata, type="response") # Predicting on validation data
+```
+```{r}
+#saveRDS(log_reg, "log_reg.rds")
+
+log_reg = readRDS("log_reg.rds")
+```
+```{r}
+library(ROCR)
+pred <- prediction(prob_train, train_sdata$PotentialFraud)
+perf <- performance(pred, measure="tpr", x.measure="fpr")
+#Plot the ROC curve using the extracted performance measures (TPR and FPR)
+plot(perf, col=rainbow(10), colorize=T, print.cutoffs.at=seq(0,1,0.05))
+perf_auc <- performance(pred, measure="auc")
+auc <- perf_auc@y.values[[1]]
+print(auc)
+```
+
+```{r}
+pred_class <- ifelse(prob_train>0.55,'Yes','No')
+table(pred_class)
+
+preds_val <- ifelse(prob_val > 0.55, 'Yes', 'No')
+table(preds_val)
+```
+
+```{r}
+table(train_sdata$PotentialFraud)
+```
+```{r}
+library(MLmetrics)
+F1_Score(train_sdata$PotentialFraud, pred_class, positive = 'Yes')  #  0.8390874
+```
+```{r}
+# confusion matrix
+conf_matrix <- table(val_sdata$PotentialFraud, preds_val)
+print(conf_matrix)
+specificity <- conf_matrix[1, 1]/sum(conf_matrix[1, ])
+sensitivity <- conf_matrix[2, 2]/sum(conf_matrix[2, ])
+accuracy <- sum(diag(conf_matrix))/sum(conf_matrix)
+```
+
+```{r}
+library(MLmetrics)
+F1_Score(val_sdata$PotentialFraud, preds_val, positive = 'Yes') #0.3529412
+```
+```{r}
+sigval= summary(log_reg)$coeff[-1,4] <0.05
+sigval
+```
+
+
+```{r}
+system.time(log_reg1 <- glm(PotentialFraud~ DeductibleAmtPaid+DaysAdmitted+NoOfMonths_PartACov + NoOfMonths_PartBCov + ChronicCond_Alzheimer + ChronicCond_Heartfailure + 
+ChronicCond_KidneyDisease + ChronicCond_Depression + ChronicCond_Diabetes + IPAnnualDeductibleAmt+ OPAnnualDeductibleAmt+ IsOperPhysician , data =train_sdata , family = binomial))
+summary(log_reg1)
+prob_train1 <- predict(log_reg1, type="response")
+# By default if no dataset is mentioned, training data is used
+prob_val1 <- predict(log_reg1, val_sdata, type="response") # Predicting on validation data
+```
+
+```{r}
+#saveRDS(log_reg, "log_reg.rds")
+
+#log_reg = readRDS("log_reg.rds")
+```
+```{r}
+library(ROCR)
+pred <- prediction(prob_train1, train_sdata$PotentialFraud)
+perf <- performance(pred, measure="tpr", x.measure="fpr")
+#Plot the ROC curve using the extracted performance measures (TPR and FPR)
+plot(perf, col=rainbow(10), colorize=T, print.cutoffs.at=seq(0,1,0.05))
+perf_auc <- performance(pred, measure="auc")
+auc <- perf_auc@y.values[[1]]
+print(auc)
+```
+```{r}
+pred_class <- ifelse(prob_train1>0.45,'Yes','No')
+table(pred_class)
+
+preds_val <- ifelse(prob_val1 > 0.45, 'Yes', 'No')
+table(preds_val)
+```
+
+```{r}
+table(train_sdata$PotentialFraud)
+```
+```{r}
+library(MLmetrics)
+F1_Score(train_sdata$PotentialFraud, pred_class, positive = 'Yes')  #  0.7644064
+```
+```{r}
+# confusion matrix
+conf_matrix <- table(val_sdata$PotentialFraud, preds_val)
+print(conf_matrix)
+specificity <- conf_matrix[1, 1]/sum(conf_matrix[1, ])
+sensitivity <- conf_matrix[2, 2]/sum(conf_matrix[2, ])
+accuracy <- sum(diag(conf_matrix))/sum(conf_matrix)
+```
+
+```{r}
+library(MLmetrics)
+F1_Score(val_sdata$PotentialFraud, preds_val, positive = 'Yes') # 0.3236364
+```
+
+
+
+################ Building  randomforest using caret ################
+```{r}
+control <- trainControl(method="cv", number=5)
+set.seed(1235869)
+tunegrid <- expand.grid(mtry=c(1:5))
+```
+```{r}
+system.time(rf_gridsearch_smoted <- train(PotentialFraud ~ ., data=train_sdata, method = "rf",
+                       trControl=control,
+                       tuneGrid = tunegrid))
+```
+```{r}
+saveRDS(rf_gridsearch_smoted, "rf_gridsearch_smoted1.rds")
+
+# rf_gridsearch = readRDS("rf_gridsearch.rds")
+```
+
+```{r}
+# Predict on the train data
+preds_train_rfgrid <- predict(rf_gridsearch_smoted,train_sdata)
+confusionMatrix(preds_train_rfgrid, train_sdata$PotentialFraud)
+
+```
+
+```{r}
+F1_Score(train_sdata$PotentialFraud, preds_train_rfgrid, positive = 'Yes') #0.9663682
+```
+
+```{r}
+# Store predictions from the model
+preds_val_rfgrid <- predict(rf_gridsearch_smoted, val_sdata)
+confusionMatrix(preds_val_rfgrid, val_sdata$PotentialFraud)
+ 
+```
+
+```{r}
+F1_Score(val_sdata$PotentialFraud, preds_val_rfgrid, positive = 'Yes') #0.4729459
+```
+
+```{r}
+### Getting the Predictions on Test Data
+preds_test_rfgrid <- predict(rf_gridsearch_smoted, test_sdata)
+final_rfgrid = data.frame(Provider = testprovider$Provider,PotentialFraud = preds_test_rfgrid)
+
+head(final_rfgrid,3)
+table(final_rfgrid$PotentialFraud)
+```
+
+
+
+```{r}
+write.csv(final_rfgrid, file = "Predictionrfgrid.csv",row.names=FALSE)
+```
+
+
+
+
+Xgb on most significant var from logisitic
+
+
+```{r}
+#Take only significant variables from logistic and apply xgb
+
+impval=c("PotentialFraud","DeductibleAmtPaid","DaysAdmitted","NoOfMonths_PartACov","NoOfMonths_PartBCov","ChronicCond_Alzheimer","ChronicCond_Heartfailure","ChronicCond_KidneyDisease","ChronicCond_Depression","ChronicCond_Diabetes","IPAnnualDeductibleAmt","OPAnnualDeductibleAmt","IsOperPhysician")
+```
+```{r}
+train_sdata1=train_sdata[,impval]
+val_sdata1=val_sdata[,impval]
+test_data1=test_sdata[,impval[-1]]
+```
+
+```{r}
+#using one hot encoding 
+
+#using one hot encoding 
+labels <- train_sdata1$PotentialFraud
+class(labels)
+
+```
+```{r}
+names(train_sdata1)
+names(train_sdata1[-1])
+```
+```{r}
+names(val_sdata1)
+names(val_sdata1[-1])
+```
+```{r}
+
+ts_label <- val_sdata1$PotentialFraud
+names(train_sdata1[1])
+```
+
+
+```{r}
+new_tr <- model.matrix(~.+0,data = train_sdata1[,-1], with = F) 
+new_ts <- model.matrix(~.+0,data = val_sdata1[,-1], with = F) 
+```
+
+```{r}
+#convert factor to numeric 
+labels <- as.numeric(labels)-1
+ts_label <- as.numeric(ts_label)-1
+```
+
+```{r}
+library(xgboost)
+#preparing matrix 
+dtrain <- xgb.DMatrix(data = new_tr,label = labels )
+dtest <- xgb.DMatrix(data = new_ts,label=ts_label)
+
+```
+
+```{r}
+numberOfClasses <- length(unique(train_sdata1$PotentialFraud))
+numberOfClasses
+```
+
+```{r}
+#default parameters
+
+ params <- list(booster = "gbtree", objective = "binary:logistic", eta=0.3, gamma=0, max_depth=6, min_child_weight=1, subsample=1, colsample_bytree=1) 
+```
+
+```{r}
+system.time(xgbcv <- xgb.cv( params = params, data = dtrain, nrounds = 100, nfold = 5, showsd = T, stratified = T, print.every.n = 10, early.stop.round = 20, maximize = F))
+```
+```{r}
+xgbcv
+```
+```{r}
+xgbcv$evaluation_log
+```
+
+```{r}
+#first default - model training
+#changing nround value based on val-erro least error
+system.time(xgb1 <- xgb.train (params = params, data = dtrain, nrounds = 93, watchlist = list(val=dtest,train=dtrain), print.every.n = 10, early.stop.round = 10, maximize = F , eval_metric = "error"))
+```
+```{r}
+saveRDS(xgb1, "xgbvar.rds")
+
+# xgb1 = readRDS("xgb1.rds")
+```
+```{r}
+#model prediction
+xgbpred <- predict (xgb1,dtest)
+
+```
+```{r}
+#model prediction
+xgbtrainpred <- predict (xgb1,dtrain)
+```
+```{r}
+f1score_eval <- function(preds, dtrain) {
+  labels <- getinfo(dtrain, "label")
+
+  e_TP <- sum( (labels==1) & (preds >= 0.5) )
+  e_FP <- sum( (labels==0) & (preds >= 0.5) )
+  e_FN <- sum( (labels==1) & (preds < 0.5) )
+  e_TN <- sum( (labels==0) & (preds < 0.5) )
+
+  e_precision <- e_TP / (e_TP+e_FP)
+  e_recall <- e_TP / (e_TP+e_FN)
+
+  e_f1 <- 2*(e_precision*e_recall)/(e_precision+e_recall)
+
+  return(list(metric = "f1-score", value = e_f1))
+}
+```
+```{r}
+#f1score_eval(xgbpred,dtest) #0.509915
+f1score_eval(xgbtrainpred,dtrain) # 0.9965843
+
+
+```
+
+```{r}
+#view variable importance plot
+  mat <- xgb.importance (feature_names = colnames(new_tr),model = xgb1)
+  par("mar")
+  par(mar=c(1,1,1,1))
+  xgb.plot.importance (importance_matrix = mat[1:20])
+```
+```{r}
+test <- chisq.test(train_sdata1$DaysAdmitted,labels)
+print(test)
+```
+
+
+```{r}
+names(train_sdata1)
+names(test_data1)
+```
+
+
+```{r}
+#model prediction on the Test Data
+  new_test <- model.matrix(~.+0,data = test_data1, with = F)
+  dtestData <- xgb.DMatrix(data = new_test)
+  final1 <- predict (xgb1,dtestData)
+```
+```{r}
+#No  Yes
+predicted.classes <- ifelse(final1 > 0.5, "Yes", "No")
+```
+```{r}
+predicted.val<- ifelse(xgbpred > 0.5, "Yes", "No")
+predicted.train<- ifelse(xgbtrainpred > 0.5, "Yes", "No")
+```
+```{r}
+library(MLmetrics)
+F1_Score(y_pred = predicted.train, y_true = train_sdata1$PotentialFraud, positive = "Yes") #0.9965843
+F1_Score(y_pred = predicted.val, y_true = val_sdata1$PotentialFraud, positive = "Yes")#0.4523282
+```
+
+
+```{r}
+finalxg2 = data.frame(Provider = testprovider$Provider,PotentialFraud = predicted.classes)
+head(finalxg2,3)
+  
+ 
+```
+```{r}
+ write.csv(finalxg2, "predictionsxgblogvar.csv", row.names = FALSE)
+```
+
+Final Results
+
+
+```{r}
+result=read.csv("FinalResults.csv", header=TRUE, sep=",",na.strings=c("","NA"))
+```
+
+```{r}
+print(result)
+```
+
+
+
+# Conclusion:
+Based on the experiments done,xgb gave the best results.But,decision tree would be a best model to suggest to the client.
+Decision tree output is very easy to understand even for people from non-analytical background.
+It does not require any statistical knowledge to read and interpret them. 
+Its graphical representation is very intuitive and users can easily relate their hypothesis.
+This model can be used a basis for first level of fraud prediction where the providers deemed fraudulent can be given to SIU (Special Investigation Unit) for further investigation.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
